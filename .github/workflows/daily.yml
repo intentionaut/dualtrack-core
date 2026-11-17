@@ -39,7 +39,7 @@ jobs:
         run: echo "id=$(gh run list --workflow daily.yml --status completed --limit 1 --json databaseId --jq '.[0].databaseId // "none"')" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ github.token }}
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: product-context
           key: team-context-${{ steps.prev.outputs.id }}
