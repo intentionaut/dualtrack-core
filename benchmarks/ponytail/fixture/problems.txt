@@ -1,0 +1,4 @@
+# Reported problems
+
+- `wrap` has no tests. It broke twice last month and nobody noticed for a week each time.
+- The two reported bugs in `truncate` and `slugify` are fixed in a release the owner is preparing by hand. Leave them.

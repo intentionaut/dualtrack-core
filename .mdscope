@@ -1,0 +1,6 @@
+# Kit files that ship to users, not working docs.
+profile.template.md
+moves.md
+product.template.md
+areas.template.md
+TRADEMARKS.md

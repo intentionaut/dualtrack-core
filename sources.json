@@ -1,0 +1,593 @@
+{
+  "pendo": {
+    "kind": "analytics",
+    "reads": "funnels, engagement and feedback themes",
+    "url": "https://app.pendo.io/mcp/v0/shttp",
+    "note": "Regional: us1.app.pendo.io, app.eu.pendo.io, app.jpn.pendo.io, app.au.pendo.io. In Pendo, a subscription admin turns on 'Pendo MCP server (read-only tools)' under Settings > Subscription settings > AI access. Leave write tools off.",
+    "tools": [
+      "listAllApplications",
+      "searchEntities",
+      "getEntity",
+      "segmentList",
+      "getSegment",
+      "listPagesFeaturesAndEvents",
+      "entityUsage",
+      "entityUsageTimeSeries",
+      "aggregateEntityUsage",
+      "appUsage",
+      "appUsageTimeSeries",
+      "productEngagementScore",
+      "queryFunnel",
+      "acquisitionTrend",
+      "cohortRetentionCurve",
+      "getFeedbackItems",
+      "getFeedbackInsights",
+      "getIdeas",
+      "listSurveys",
+      "surveyScores",
+      "surveyResponses",
+      "sessionReplayList",
+      "sessionReplaySummarize",
+      "listGuides",
+      "guideEffectivenessMetrics",
+      "agentAnalyticsKeyMetrics",
+      "listAiAgents",
+      "listAiAgentIssues"
+    ],
+    "ask": "The goal's main funnel and its biggest drop-off step, product engagement score, and the top feedback and survey themes, for the last 14 days against the 14 before."
+  },
+  "posthog": {
+    "kind": "analytics",
+    "reads": "active users, funnels, retention and errors",
+    "url": "https://mcp.posthog.com/mcp?mode=tools&tools=query-trends,query-funnel,query-paths,query-retention,query-stickiness,query-lifecycle,insight-query,insights-list,insight-get,dashboards-get-all,dashboard-get,query-error-tracking-issues-list,query-error-tracking-issue,query-session-recordings-list,read-data-schema,experiment-list,experiment-get,experiment-results-get,feature-flag-get-all",
+    "note": "tools= is PostHog's documented allowlist: the server exposes only these tools, each marked readOnlyHint in PostHog's schema (services/mcp/schema/tool-definitions-all.json, checked 2026-11-06). Sign in with OAuth when Claude Code asks.",
+    "tools": [
+      "query-trends",
+      "query-funnel",
+      "query-paths",
+      "query-retention",
+      "query-stickiness",
+      "query-lifecycle",
+      "insight-query",
+      "insights-list",
+      "insight-get",
+      "dashboards-get-all",
+      "dashboard-get",
+      "query-error-tracking-issues-list",
+      "query-error-tracking-issue",
+      "query-session-recordings-list",
+      "read-data-schema",
+      "experiment-list",
+      "experiment-get",
+      "experiment-results-get",
+      "feature-flag-get-all"
+    ],
+    "ask": "Weekly active users, the goal's main funnel and its biggest drop-off step, retention, and the top error-tracking issues, for the last 14 days against the 14 before.",
+    "left_out": [
+      "agent-feedback"
+    ]
+  },
+  "mixpanel": {
+    "kind": "analytics",
+    "reads": "funnels, retention and event changes",
+    "url": "https://mcp.mixpanel.com/mcp",
+    "note": "Regional: mcp-eu.mixpanel.com, mcp-in.mixpanel.com. An organisation admin turns MCP on under Settings > Org > AI Settings. The server has write tools, so only the tools listed here run.",
+    "tools": [
+      "Run-Query",
+      "Get-Query-Schema",
+      "Get-Report",
+      "List-Dashboards",
+      "Get-Dashboard",
+      "Get-Projects",
+      "Get-Events",
+      "List-Properties",
+      "Get-Property-Values",
+      "Search-Entities",
+      "Get-Issues",
+      "List-Cohorts",
+      "Get-Cohort",
+      "List-Metrics",
+      "Get-Metric",
+      "List-Experiments",
+      "Get-Experiment"
+    ],
+    "ask": "The goal's main funnel and its biggest drop-off step, retention, and the events that changed most, for the last 14 days against the 14 before."
+  },
+  "jira": {
+    "kind": "tracker",
+    "reads": "open bugs and requests",
+    "url": "https://mcp.atlassian.com/v2/mcp?tools=all",
+    "note": "Atlassian's Rovo MCP server. Sign in with OAuth. An org admin grants access by permission group: give it the read and search groups only. Delete tools are off by default; keep them off. Run claude mcp login jira once, so scheduled runs can use it.",
+    "tools": [
+      "searchJiraIssuesUsingJql",
+      "getJiraIssue",
+      "listJiraIssueComments",
+      "listJiraIssueChangelogs",
+      "listJiraProjects",
+      "listJiraStatuses",
+      "listJiraBoards",
+      "getJiraBoardIssueData",
+      "listJiraBoardSprints",
+      "getJiraBoardSprintData",
+      "listJiraFilters",
+      "getJiraProjectVersions",
+      "getAccessibleAtlassianResources"
+    ],
+    "ask": "Open bugs and feature requests for this product's project from the last 14 days: counts by type and status, the five most reported with their keys and summaries, and anything reopened. No assignee or reporter names."
+  },
+  "usersnap": {
+    "kind": "support",
+    "reads": "feedback themes",
+    "url": "https://mcp.usersnap.com/mcp/",
+    "note": "Usersnap's MCP server, enabled per company. Sign in with OAuth. In the connector's Tool permissions, switch off create_opportunity and link_feedback_to_opportunity. Run claude mcp login usersnap once, so scheduled runs can use it.",
+    "tools": [
+      "list_spaces",
+      "list_sites",
+      "search_feedback",
+      "filter_feedback",
+      "find_similar_feedback",
+      "get_feedback",
+      "search_labels",
+      "search_topics"
+    ],
+    "ask": "Feedback from the last 14 days: the top themes with counts, three representative quotes each with no names or emails, and any theme growing against the 14 days before."
+  },
+  "confluence": {
+    "kind": "docs",
+    "reads": "specs, research and decisions",
+    "url": "https://mcp.atlassian.com/v2/mcp?tools=all",
+    "note": "Atlassian's Rovo MCP server, the same one as Jira. An org admin grants read_confluence and search_confluence only, never write_confluence. Run claude mcp login confluence once, so scheduled runs can use it. Left out: personal spaces and page permissions, which name people.",
+    "tools": [
+      "searchConfluence",
+      "getConfluenceContent",
+      "listConfluenceContent",
+      "listConfluenceSpaces",
+      "getConfluenceSpace",
+      "listConfluenceComments",
+      "getConfluenceComment",
+      "listConfluenceContentVersions",
+      "getConfluenceContentVersion",
+      "diffConfluenceContentVersions",
+      "listConfluenceAttachments",
+      "getConfluenceAttachment",
+      "exportConfluenceContent",
+      "listConfluenceTasks",
+      "getConfluenceTask",
+      "listConfluenceTemplates",
+      "getConfluenceTemplate",
+      "resolveConfluenceContentMacros"
+    ],
+    "ask": "For this product: the latest PRDs, specs, research notes and decision records, each with its title, date and the one-line conclusion. Anything changed in the last 14 days first. No people's names."
+  },
+  "amplitude": {
+    "kind": "analytics",
+    "reads": "active users, funnels and retention",
+    "url": "https://mcp.amplitude.com/mcp",
+    "note": "EU: https://mcp.eu.amplitude.com/mcp. Give the connecting account the project role Use MCP (read) only. Run claude mcp login amplitude once. Left out: user profiles and session replays (personal data), and the mixed read-and-write tools.",
+    "tools": [
+      "search_amp_entities",
+      "search_amp_data_taxonomy",
+      "get_from_url",
+      "get_amplitude_context",
+      "query_amplitude_data",
+      "get_amplitude_charts",
+      "render_amplitude_chart",
+      "get_amp_taxonomy",
+      "get_group_types",
+      "query_wave_opportunities",
+      "query_wave_product_areas",
+      "use_amplitude_ai_feedback"
+    ],
+    "ask": "Weekly active users, the goal's main funnel and its biggest drop-off step, and retention, for the last 14 days against the 14 before. Aggregates only, never individual users."
+  },
+  "intercom": {
+    "kind": "support",
+    "reads": "help articles and their gaps",
+    "url": "https://mcp.intercom.com/mcp",
+    "note": "EU: https://mcp.eu.intercom.com/mcp. It acts as the connecting admin and has no read-only mode, so only these tools are allowed. Run claude mcp login intercom once. Left out: contacts and conversations, which are personal data; use a support export of counts instead.",
+    "tools": [
+      "list_articles",
+      "search_articles",
+      "get_article",
+      "list_companies",
+      "get_company"
+    ],
+    "ask": "Help articles about this product: which exist, which were updated in the last 14 days, and gaps where a common task has no article. Company names only, never people."
+  },
+  "figma": {
+    "kind": "docs",
+    "reads": "design system variables and components",
+    "url": "https://mcp.figma.com/mcp",
+    "note": "Figma's remote server; only clients in Figma's catalog can connect. Run claude mcp login figma once. The desktop server at http://127.0.0.1:3845/mcp also works with a Dev or Full seat.",
+    "tools": [
+      "get_design_context",
+      "get_metadata",
+      "get_screenshot",
+      "get_variable_defs",
+      "search_design_system",
+      "get_libraries",
+      "get_code_connect_map",
+      "get_figjam"
+    ],
+    "ask": "The design system this product uses: its colour, type and spacing variables, its main components and their names, and any frame linked from today's item."
+  },
+  "notion": {
+    "kind": "docs",
+    "reads": "specs, research, roadmap and decisions",
+    "url": "https://mcp.notion.com/mcp",
+    "note": "Notion's official server. Run claude mcp login notion once, or connect Notion at claude.ai: either name works. Admins can restrict tools further. Left out: members and guests (names, emails), Notion memory, meeting notes and every write tool.",
+    "tools": [
+      "notion-search",
+      "notion-fetch",
+      "notion-query-data-sources",
+      "notion-query-multiple-data-sources",
+      "notion-get-comments",
+      "notion-list-page-backlinks",
+      "notion-view-version",
+      "notion-get-tool-access"
+    ],
+    "ask": "For this product: the latest specs, research, roadmap and decision pages, each with its title, date and one-line conclusion, and any database of requests or bugs with counts by status. Changes in the last 14 days first. No people's names.",
+    "connector": "claude_ai_Notion"
+  },
+  "linear": {
+    "kind": "tracker",
+    "reads": "open bugs and requests",
+    "url": "https://mcp.linear.app/mcp/readonly",
+    "note": "Linear's official read-only endpoint, so every tool on it reads. Run claude mcp login linear once, so scheduled runs can use it. Linear publishes no tool names; the endpoint is the guard.",
+    "tools": [
+      "*"
+    ],
+    "ask": "Open bugs and feature requests for this product's team from the last 14 days: counts by priority and status, the five most requested with their IDs and titles, and anything reopened. No assignee names."
+  },
+  "google_drive": {
+    "kind": "docs",
+    "reads": "specs, research and launch plans",
+    "server": "claude_ai_Google_Drive",
+    "connect": "Connect Google Drive at https://claude.ai/customize/connectors. It reaches scheduled runs only when Claude Code is logged in with that claude.ai account, not with an API key.",
+    "note": "Claude's own Google Drive connector. Left out: sharing details, which name people, and file creation.",
+    "tools": [
+      "search_files",
+      "read_file_content",
+      "list_recent_files",
+      "get_file_metadata",
+      "download_file_content"
+    ],
+    "ask": "Recent docs about this product: PRDs, research, launch plans and decision records, each with title, date and one-line conclusion. Changes in the last 14 days first. No people's names."
+  },
+  "sentry": {
+    "kind": "errors",
+    "reads": "top unresolved errors",
+    "url": "https://mcp.sentry.dev/mcp",
+    "note": "Sentry's official server; scope it to one project with /mcp/<org>/<project>. Run claude mcp login sentry once. Left out: user reports, replays, breadcrumbs, tag values and attachments, which can carry end users' emails and IPs, and Seer analysis, which costs extra. The search_* tools need an AI provider on Sentry's side.",
+    "tools": [
+      "search_issues",
+      "search_errors",
+      "search_events",
+      "get_issue_details",
+      "get_issue_activity",
+      "get_event_stacktrace",
+      "get_trace_details",
+      "find_projects",
+      "find_releases",
+      "get_release_details",
+      "find_dashboards",
+      "get_dashboard_details",
+      "find_organizations"
+    ],
+    "ask": "The top unresolved issues for this product in the last 14 days, by events and users affected, with each issue's ID, title, first seen, and the release it started in; any new since the last release. Counts only, never users' details."
+  },
+  "bigquery": {
+    "kind": "analytics",
+    "reads": "active users, conversion and revenue",
+    "url": "https://bigquery.googleapis.com/mcp",
+    "note": "Google's hosted BigQuery server. Use a separate identity for agents with roles/mcp.toolUser, roles/bigquery.jobUser and roles/bigquery.dataViewer on the needed datasets only, and an IAM deny policy on execute_sql. Queries return whatever the tables hold: point it at aggregated datasets or authorised views, never raw user tables.",
+    "tools": [
+      "list_dataset_ids",
+      "get_dataset_info",
+      "list_table_ids",
+      "get_table_info",
+      "execute_sql_readonly",
+      "get_query_results",
+      "get_job"
+    ],
+    "ask": "From the datasets you can see: this product's weekly active users, conversion through its main funnel, and revenue or retention, for the last 14 days against the 14 before. Aggregates only; show each query."
+  },
+  "dovetail": {
+    "kind": "calls",
+    "reads": "research projects and their tags",
+    "url": "https://dovetail.com/api/mcp",
+    "note": "Dovetail's official server. Enable it at Settings > Connected apps. It runs with your own role and has no read-only mode, so only these tools are allowed. Left out: users, contacts, research data, highlights, channels, docs and files, which carry named participants. What is left is project and tag structure, so it shows what is being studied, not what people said.",
+    "tools": [
+      "get_dovetail_projects",
+      "get_project",
+      "get_project_context",
+      "get_workspace_context",
+      "list_folders",
+      "get_folder",
+      "get_folder_contents",
+      "list_tags",
+      "get_tag",
+      "list_fields",
+      "get_field"
+    ],
+    "ask": "Research projects for this product: their titles, dates, goals and the tags most used, newest first. No participants and no quotes."
+  },
+  "gong": {
+    "kind": "calls",
+    "reads": "problems raised on sales calls",
+    "url": "https://mcp.gong.io/mcp",
+    "note": "Gong's official server is read-only by design, and each call uses Gong credits. A tech admin creates the integration under Admin center > Settings > Ecosystem > MCP; choose personal access and the mcp:read scope. Answers come from calls with named people, so turn this on only with your privacy team's agreement. Left out: generate_brief, which lists stakeholders.",
+    "tools": [
+      "ask_account",
+      "ask_deal"
+    ],
+    "ask": "Across accounts and open deals mentioning this product in the last 30 days: the five most raised problems and requests, each with how many accounts raised it. Themes and counts only; no names, companies' people or quotes."
+  },
+  "prodpad": {
+    "kind": "tracker",
+    "reads": "roadmap initiatives and objectives",
+    "url": "https://api.prodpad.com/mcp",
+    "note": "ProdPad's official server, on Modular v2 and Enterprise plans. Sign in with OAuth (claude mcp login prodpad once). It has no read-only mode, so only these tools are allowed. Left out: feedback and search, which can return customers' contact details, and every write tool.",
+    "tools": [
+      "list_ideas",
+      "get_idea",
+      "list_initiatives",
+      "get_initiative",
+      "list_objectives",
+      "get_objective",
+      "list_key_results",
+      "get_key_result",
+      "list_products",
+      "list_personas",
+      "list_workflow_statuses",
+      "get_account_configuration"
+    ],
+    "ask": "For this product: the roadmap's current initiatives and their status, the objectives and key results they serve, and the ideas most recently moved or added, with their workflow status. No people's names."
+  },
+  "asana": {
+    "kind": "tracker",
+    "reads": "open bugs and requests",
+    "url": "https://mcp.asana.com/v2/mcp",
+    "note": "Asana's official server; it sees what the signed-in user sees. Enterprise admins can allow it per client in app management. Run claude mcp login asana once. No read-only mode, so only these tools are allowed. Left out: users, comments (stories), notifications, my tasks and attachments.",
+    "tools": [
+      "get_task",
+      "get_tasks",
+      "search_tasks",
+      "get_project",
+      "get_projects",
+      "get_portfolio",
+      "get_portfolios",
+      "get_items_for_portfolio",
+      "get_status_overview"
+    ],
+    "ask": "This product's open bugs and requests from the last 14 days, counts by section and status, the five most important by priority with their titles, and its projects' latest status. No assignee names."
+  },
+  "clickup": {
+    "kind": "tracker",
+    "reads": "open bugs and requests",
+    "url": "https://mcp.clickup.com/mcp",
+    "note": "ClickUp's official server, OAuth only; it acts with the user's own permissions. Run claude mcp login clickup once. No read-only mode, so only these tools are allowed. Left out: members, chat, comments, time entries, reminders, attachments and search.",
+    "tools": [
+      "clickup_get_task",
+      "clickup_filter_tasks",
+      "clickup_get_custom_fields",
+      "clickup_get_task_time_in_status",
+      "clickup_get_list",
+      "clickup_get_folder",
+      "clickup_get_workspace_hierarchy",
+      "clickup_list_document_pages",
+      "clickup_get_document_pages"
+    ],
+    "ask": "This product's open bugs and requests from the last 14 days, counts by status and priority, the five oldest still open, and how long tasks sit in each status. No assignee names."
+  },
+  "canny": {
+    "kind": "support",
+    "reads": "most-requested ideas",
+    "url": "https://api.canny.io/api/mcp/v1",
+    "note": "Canny's official server; an Owner sets up the first connection, and it needs Canny Ideas. Run claude mcp login canny once. No read-only mode, so only these tools are allowed. Left out: users, admins, voters, comments and insights, which name people.",
+    "tools": [
+      "list_boards",
+      "list_board_categories",
+      "list_board_tags",
+      "list_ideas",
+      "retrieve_idea",
+      "list_idea_statuses",
+      "list_idea_themes",
+      "list_changelog_entries",
+      "list_companies"
+    ],
+    "ask": "The most requested ideas for this product, by votes, with their status and theme; what moved status in the last 14 days; and the latest changelog entries. Vote counts only, never voters."
+  },
+  "statsig": {
+    "kind": "analytics",
+    "reads": "experiment results",
+    "url": "https://api.statsig.com/v3/mcp",
+    "note": "Statsig's official server. Use a read-only Console API key, or OAuth (claude mcp login statsig once). Left out: log_read and api_read, generic reads that can reach user-level data, and search and fetch.",
+    "tools": [
+      "experiment_read",
+      "gate_read",
+      "dynamic_config_read",
+      "metric_read",
+      "get_context",
+      "discover_tools"
+    ],
+    "ask": "Experiments running or finished for this product in the last 30 days: each one's hypothesis, primary metric, result and significance, and its decision. Aggregates only."
+  },
+  "datadog": {
+    "kind": "errors",
+    "reads": "incidents and alerting monitors",
+    "url": "https://mcp.datadoghq.com/v1/mcp",
+    "note": "Datadog's official server; other sites use https://mcp.<site>/v1/mcp (us3., us5., datadoghq.eu, ap1., ap2., uk1.). An admin turns on MCP Access and leaves MCP Write Access off, which hides every write tool. Run claude mcp login datadog once. Left out: RUM events, users and audit events, which are about individuals.",
+    "tools": [
+      "search_datadog_incidents",
+      "get_datadog_incident",
+      "search_datadog_monitors",
+      "search_datadog_events",
+      "get_datadog_metric",
+      "get_datadog_metric_context",
+      "search_datadog_metrics",
+      "search_datadog_dashboards",
+      "search_datadog_notebooks",
+      "get_datadog_notebook",
+      "search_datadog_entities",
+      "search_datadog_logs",
+      "analyze_datadog_logs",
+      "search_datadog_spans",
+      "aggregate_spans",
+      "get_datadog_trace",
+      "search_datadog_hosts"
+    ],
+    "ask": "For this product's services in the last 14 days: incidents and their causes, monitors that alerted most, error rate and latency against the 14 days before, and the slowest endpoints. Counts and rates only."
+  },
+  "hubspot": {
+    "kind": "analytics",
+    "reads": "campaign and email results",
+    "url": "https://mcp.hubspot.com",
+    "note": "HubSpot's official server; an account admin connects first. Run claude mcp login hubspot once. No read-only mode, so only these tools are allowed. Left out: contacts and every CRM record search, owners, users, conversations and intent signals, which are about people. What is left is campaign and content performance.",
+    "tools": [
+      "get_organization_details",
+      "discover_hubspot_schema",
+      "search_properties",
+      "get_properties",
+      "get_campaign_attribution_reports",
+      "read_campaign_data",
+      "get_marketing_email_analytics",
+      "get_content_analytics_report"
+    ],
+    "ask": "Campaign, email and content performance for this product in the last 30 days: what drove sign-ups or pipeline, open and click rates, and the best and worst pages. Aggregates only, never contacts."
+  },
+  "launchdarkly": {
+    "kind": "analytics",
+    "reads": "experiment results",
+    "url": "https://mcp.launchdarkly.com/mcp?writes=none&toolsets=flags,experiments,releases,observability",
+    "note": "LaunchDarkly's hosted server, OAuth only (claude mcp login launchdarkly once). writes=none hides write tools but does not limit access: connect as a member whose role is read-only. EU and Federal instances use LaunchDarkly's self-managed server instead. Left out: contexts, sessions, members, change history, segments (they name individuals), SDK keys and invite-members.",
+    "tools": [
+      "get-flags",
+      "get-flag-status-across-envs",
+      "get-flag-health",
+      "search-stale-flags",
+      "get-removal-readiness",
+      "get-flag-code-references",
+      "get-experiments",
+      "get-experiment-results",
+      "get-experiment-metric-results",
+      "get-metrics",
+      "get-projects",
+      "get-environment",
+      "query-funnel",
+      "get-release-policies",
+      "get-dashboards",
+      "get-incidents",
+      "get-alerts",
+      "search-error-groups",
+      "get-error-group"
+    ],
+    "ask": "Experiments running or finished for this product in the last 30 days, with each one's metric results and significance; flags rolled out or rolled back; stale flags; and incidents. Aggregates only."
+  },
+  "optimizely": {
+    "kind": "analytics",
+    "reads": "experiment results",
+    "url": "https://exp.mcp.opal.optimizely.com/mcp",
+    "note": "Optimizely's Experimentation server; sign in with Opti ID (claude mcp login optimizely once). It needs Mark, Optimizely's agent platform, and runs with your own permissions, with no read-only mode, so only these tools are allowed. Left out: the two execute_query tools (the write guard refuses anything named execute) and exp_manage_entity_lifecycle, which creates and archives flags, experiments and audiences.",
+    "tools": [
+      "exp_summarize_test_result",
+      "exp_program_reporting_top_experiments",
+      "exp_get_schemas",
+      "exp_get_entity_templates",
+      "exp_search_fx_sdk_docs"
+    ],
+    "ask": "Experiments concluded or running for this product in the last 30 days: each one's hypothesis, primary metric, result and confidence, and the programme's win rate. Aggregates only."
+  },
+  "monday": {
+    "kind": "tracker",
+    "reads": "board items and what moved",
+    "url": "https://mcp.monday.com/mcp",
+    "note": "monday.com's hosted server (claude mcp login monday once). Its read-only flag works only for the local package, so only these tools are allowed. Left out: users and teams, updates, board activity, full board data and item pages (they hold people columns), generic API reads, and tools labelled read that act (submit_bug_or_feature_request, manage_tools).",
+    "tools": [
+      "list_workspaces",
+      "workspace_info",
+      "get_board_info",
+      "get_board_schema",
+      "board_insights",
+      "get_column_type_info",
+      "get_form",
+      "read_docs",
+      "get_automation_statistics",
+      "list_automations"
+    ],
+    "ask": "For this product's boards: items by status and group, what moved in the last 14 days, and its boards' insights. Counts only, no people's names."
+  },
+  "cloudflare": {
+    "kind": "analytics",
+    "reads": "visits, top pages and referrers",
+    "url": "https://graphql.mcp.cloudflare.com/mcp",
+    "note": "Cloudflare's official GraphQL analytics server. The GraphQL API has no mutations, so every tool only reads. Cloudflare lists it as deprecated in favour of mcp.cloudflare.com, which can write; move only when a read-only scope is set. Run claude mcp login cloudflare once (OAuth, account:read).",
+    "tools": [
+      "graphql_schema_search",
+      "graphql_schema_overview",
+      "graphql_type_details",
+      "graphql_query",
+      "zones_list",
+      "zone_details"
+    ],
+    "ask": "For this product's zone or Web Analytics site: visits, page views, top paths and top referrers, for the last 14 days against the 14 before. Counts only, no IPs or user agents.",
+    "left_out": [
+      "graphql_api_explorer",
+      "graphql_complete_schema"
+    ]
+  },
+  "search_console": {
+    "kind": "analytics",
+    "reads": "search clicks, queries and indexing",
+    "server": "search-console",
+    "command": "uvx mcp-search-console==0.4.1",
+    "pin": "mcp-search-console==0.4.1",
+    "connect": "claude mcp add -s user search-console -e GSC_CREDENTIALS_PATH=<path to a read-only service account key> -- uvx mcp-search-console==0.4.1",
+    "note": "Community server (github.com/AminForou/mcp-gsc, MIT); Google runs none. It asks Google only for webmasters.readonly unless GSC_ALLOW_DESTRUCTIVE=true, so never set that. Left out: add_site, delete_site, delete_sitemap, submit_sitemap, manage_sitemaps and reauthenticate.",
+    "tools": [
+      "list_properties",
+      "get_site_details",
+      "get_search_analytics",
+      "get_advanced_search_analytics",
+      "get_performance_overview",
+      "compare_search_periods",
+      "get_search_by_page_query",
+      "inspect_url_enhanced",
+      "check_indexing_issues",
+      "get_sitemaps"
+    ],
+    "ask": "For this product's site: clicks, impressions, CTR and average position, the top queries and pages, and indexing issues, for the last 28 days against the 28 before.",
+    "left_out": [
+      "batch_url_inspection",
+      "get_capabilities",
+      "get_creator_info",
+      "get_sitemap_details",
+      "list_sitemaps_enhanced",
+      "reauthenticate"
+    ]
+  },
+  "checkly": {
+    "kind": "errors",
+    "reads": "failing checks and their recent results",
+    "url": "https://api.checklyhq.com/mcp",
+    "note": "Checkly's official server. Run claude mcp login checkly once and grant read permissions only; Checkly has no read-only mode, so Dualtrack allows only the read tools listed here. Left out: account members and alert channels, which are about people; environment variables; logs, screenshots and other result files, which can carry end users' details; and every tool that creates, changes, deletes or runs a check.",
+    "tools": [
+      "list-check-stats",
+      "get-check",
+      "list-check-results",
+      "get-check-result",
+      "get-check-performance-summary",
+      "list-check-groups",
+      "get-check-group",
+      "get-error-group-root-cause-analyses",
+      "get-root-cause-analysis",
+      "list-status-page-incidents",
+      "get-status-page-incident",
+      "list-test-sessions",
+      "get-test-session",
+      "list-test-session-results",
+      "get-test-session-result"
+    ],
+    "ask": "For this product's checks in the last 14 days: which are failing or degraded now, each one's name, type, when it started failing and its last passing run; the checks that failed most often, with counts; and any open status page incident. Counts and check names only, never people's details."
+  }
+}

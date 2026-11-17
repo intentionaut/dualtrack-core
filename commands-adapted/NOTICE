@@ -1,0 +1,5 @@
+code-review.md in this folder is an adaptation of the Code Review command from Anthropic's
+code-review plugin 1.0.1 (claude-plugins-official, snapshot fa4eb54397ee2faccb6940512a19c017cb1337f3),
+licensed under the Apache License 2.0; see LICENSE in this folder. It was modified for Dualtrack:
+GitHub reads go through scripts/ghrest.py over REST, and every way to post or write was removed.
+The rest of Dualtrack is licensed under the Functional Source License 1.1, Apache 2.0 Future License (FSL-1.1-ALv2); see LICENSE and NOTICE at the root.

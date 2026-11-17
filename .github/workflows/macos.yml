@@ -1,0 +1,58 @@
+name: macos-sandbox
+# The Seatbelt (sandbox-exec) tests need macOS, and macOS minutes cost ten times
+# Linux's, so this runs only the tests that need it: nightly, and on pull
+# requests that touch the sandbox. Not a required check; the full suite on
+# Ubuntu in test.yml stays the gate.
+on:
+  pull_request:
+    paths:
+      - scripts/daily_loop.sh
+      - scripts/egress_proxy.py
+      - scripts/setup_check.py
+      - tests/test_loop.py
+      - tests/test_setup.py
+      - .github/workflows/macos.yml
+  schedule:
+    - cron: "45 3 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  seatbelt:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false  # the tests run branch code; the token must not sit in .git/config
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - run: git config --global user.name ci && git config --global user.email ci@example.invalid && git config --global init.defaultBranch main
+      # Every test whose skip rule names sandbox-exec, found from the file so a new Seatbelt test joins without an edit here.
+      - name: Run the Seatbelt tests
+        run: |
+          ids=$(python3 - <<'PY'
+          import ast
+          # test_setup.py: only OfflineBox (setup's offline box); its other Seatbelt tests are not part of this job.
+          for mod, only in (("test_loop", None), ("test_setup", "OfflineBox")):
+              for c in ast.parse(open(f"tests/{mod}.py").read()).body:
+                  if isinstance(c, ast.ClassDef) and only in (None, c.name):
+                      for f in c.body:
+                          if isinstance(f, ast.FunctionDef) and any("sandbox-exec" in ast.unparse(d) for d in f.decorator_list):
+                              print(f"{mod}.{c.name}.{f.name}")
+          PY
+          )
+          test -n "$ids" || { echo "no Seatbelt tests found"; exit 1; }
+          rc=0
+          n=$(echo "$ids" | wc -l | tr -d ' ')
+          echo "$n tests"
+          PYTHONPATH=tests python3 -m unittest -v $ids > out.txt 2>&1 || rc=$?
+          cat out.txt
+          test "$rc" = 0
+          grep -q "^Ran $n tests" out.txt
+          # A skip is not a pass, except the one test that skips itself when the runner cannot reach the internet.
+          grep -qE '^OK$' out.txt || { grep -qE '^OK \(skipped=1\)$' out.txt && grep -q "skipped 'this machine is offline'" out.txt; }

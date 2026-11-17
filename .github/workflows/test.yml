@@ -1,0 +1,83 @@
+name: test
+# Pull requests run the full suite. Main does not re-run it on every push: each
+# change reached main through a pull request whose run already tested it, and
+# that push run was 846 of 1,970 billed minutes from 14 Oct to 13 Nov 2026.
+# The nightly run covers what a PR run cannot: two PRs that pass apart and fail
+# together, and any direct push to main. It skips itself when main has not
+# moved since the last green nightly run, and runs in full if that check fails.
+on:
+  pull_request:
+  schedule:
+    - cron: "15 3 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+# A newer push to the same pull request cancels the run it replaces. Never the
+# nightly or manual runs.
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  main-changed:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      changed: ${{ steps.cmp.outputs.changed }}
+    steps:
+      - id: cmp
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          last=$(gh run list -R "$GITHUB_REPOSITORY" -w test -e schedule -b main -s success -L 1 --json headSha -q '.[0].headSha') || last=""
+          echo "last green nightly: ${last:-none}, main now: $GITHUB_SHA"
+          if [ -n "$last" ] && [ "$last" = "$GITHUB_SHA" ]; then echo changed=false >> "$GITHUB_OUTPUT"; else echo changed=true >> "$GITHUB_OUTPUT"; fi
+  test-shard:
+    needs: main-changed
+    # Runs unless the nightly check positively said main is unchanged. A
+    # skipped or failed check leaves the output empty, so the suite runs.
+    if: ${{ !cancelled() && needs.main-changed.outputs.changed != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Four jobs each run a quarter of the tests (scripts/test_parallel.py).
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    env:
+      SHARD: "${{ matrix.shard }}/4"
+      TEST_WORKERS: "2"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false  # the suite runs branch code; the token must not sit in .git/config
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      # Branch code runs in bubblewrap on Linux; Ubuntu 24.04 blocks the user namespaces it needs unless allowed.
+      - run: sudo apt-get install -y -q bubblewrap && sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - run: git config --global user.name ci && git config --global user.email ci@example.invalid && git config --global init.defaultBranch main
+      # Tests dealt across several processes; fails if any fails or the count run differs from the count found.
+      - run: python3 scripts/test_parallel.py
+      # The suite runs on 3.12, which accepts syntax that 3.9 rejects; the README promises 3.9, so compile every script there too.
+      # In the official 3.9 image: ubuntu-latest no longer ships 3.9, so setup-python cannot install it.
+      - if: matrix.shard == 0
+        run: docker run --rm -v "$PWD":/w -w /w python:3.9-slim@sha256:2d97f6910b16bd338d3060f261f53f144965f755599aab1acda1e13cf1731b1b python3 -m unittest -v tests.test_py39_syntax
+  # The one required check name, "test": passes only if every shard passed, or
+  # the nightly check said main is unchanged and the shards were skipped.
+  test:
+    needs: [main-changed, test-shard]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          SHARDS: ${{ needs.test-shard.result }}
+          CHANGED: ${{ needs.main-changed.outputs.changed }}
+        run: |
+          echo "shards: $SHARDS, main changed: ${CHANGED:-n/a}"
+          [ "$SHARDS" = success ] && exit 0
+          [ "$SHARDS" = skipped ] && [ "$CHANGED" = false ] && exit 0
+          exit 1

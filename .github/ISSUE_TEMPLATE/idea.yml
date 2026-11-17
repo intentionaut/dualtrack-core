@@ -1,0 +1,23 @@
+name: Idea
+description: Suggest a change or a new feature for Dualtrack.
+labels: ["idea"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What is hard or missing today, and for whom.
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: The change you suggest
+      description: What Dualtrack should do. One change per issue.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: How you would know it worked
+      description: The result a product owner would see.
