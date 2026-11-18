@@ -2,7 +2,6 @@
 
 The scan reads daily_loop.sh and run.sh as text, so a stop added later without a row in loop_lib.GATES fails here.
 """
-import io
 import json
 import os
 import pathlib
@@ -15,7 +14,6 @@ KIT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KIT / "scripts"))
 import dashboard
 import dashboard_server
-import decide
 import handoff
 try:
     import scratch

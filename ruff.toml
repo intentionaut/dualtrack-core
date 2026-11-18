@@ -1,0 +1,4 @@
+# Real bugs only (syntax errors, unused or undefined names, duplicate imports, "not x in y").
+# The house style of one-line statements, short names and lambdas is deliberate.
+[lint]
+select = ["E9", "F", "E713"]

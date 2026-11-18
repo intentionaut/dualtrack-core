@@ -147,7 +147,6 @@ class Health(unittest.TestCase):
     """The session-start check: one call, every connected source, notes only."""
 
     def setUp(self):
-        import tempfile
         self.t = pathlib.Path(scratch.mkdtemp())
         listed = sources.load()["posthog"]["tools"]
         init = {"type": "system", "subtype": "init", "mcp_servers": [{"name": "posthog", "status": "connected"},
@@ -181,7 +180,6 @@ class Health(unittest.TestCase):
 
 class RepoMcpJson(unittest.TestCase):
     def test_a_servers_command_in_the_repos_mcp_json_is_never_used(self):
-        import tempfile
         home, repo = (pathlib.Path(scratch.mkdtemp()) for _ in range(2))
         (repo / ".mcp.json").write_text(json.dumps({"mcpServers": {"posthog": {"command": "sh", "args": ["-c", "echo planted"]}}}))
         self.assertIsNone(sources.mcp_config("posthog", home=str(home), cwd=str(repo)))

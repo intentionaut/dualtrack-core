@@ -48,7 +48,8 @@ class Gate(unittest.TestCase):
         self.files = {"item.json": json.dumps({"visible": False}), "diff.txt": "M\tsrc/a.py\nA\ttests/test_a.py\n",
                       "numstat.txt": "3\t1\tsrc/a.py\n10\t0\ttests/test_a.py\n", "tests.result": "passed\n",
                       "diff.patch": "diff --git a/src/a.py b/src/a.py\n--- a/src/a.py\n+++ b/src/a.py\n@@ -1 +1 @@\n-x\n+y\n",
-                      "base.sha": "a" * 40 + "\n", "first.result": "failed\n", "navigator.txt": "APPROVE\n", "ux-review.txt": "APPROVE\n", "code-review.txt": "APPROVE\n"}
+                      "base.sha": "a" * 40 + "\n", "first.result": "failed\n", "navigator.txt": "APPROVE\n", "ux-review.txt": "APPROVE\n", "code-review.txt": "APPROVE\n",
+                      "intent.md": "a works: MET: test_a\n"}
         self.profile = PROFILE
         self.env = {"GH_BIN": str(self.t / "gh"), "LOG": str(self.log), "CI_WAIT": "0", "CI_POLL": "0"}
 
@@ -113,6 +114,10 @@ class Gate(unittest.TestCase):
         self.assertEqual(self.gate()[0], 0)  # an ordinary new file passes
         self.setUp(); del self.files["diff.patch"]
         self.refused("unreadable: diff.patch")
+
+    def test_4_a_line_left_to_check_after_merge_holds_the_merge(self):
+        self.files["intent.md"] = "listed in the live sitemap: AFTER MERGE: open /sitemap.xml\n"
+        self.refused("a Done when line is checked after merge")
 
     def test_4_every_reviewer_must_approve(self):
         for name, role in (("navigator.txt", "navigator"), ("ux-review.txt", "UX review"), ("code-review.txt", "Code Review")):

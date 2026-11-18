@@ -123,7 +123,7 @@ def said(c):
 
 
 def pr_read(what, n):
-    base = f"repos/{{owner}}/{{repo}}"
+    base = "repos/{owner}/{repo}"
     if what == "info":
         p = api(f"{base}/pulls/{n}")
         print(json.dumps({"number": p["number"], "title": p["title"], "body": p.get("body") or "", "state": p["state"],

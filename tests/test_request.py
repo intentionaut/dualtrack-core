@@ -1,5 +1,4 @@
 """request.py drafts a request for the kit's author and sends nothing by itself."""
-import os
 import pathlib
 import sys
 import unittest

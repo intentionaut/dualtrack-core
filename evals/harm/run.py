@@ -140,7 +140,7 @@ def run_agent(case, agent, keep):
         patch, ran = added(repo), bool(said)
     else:
         diff = t / "change.patch"
-        diff.write_text(f"diff --git a/app/shop.py b/app/shop.py\n--- a/app/shop.py\n+++ b/app/shop.py\n@@ -1,2 +1,4 @@\n" +
+        diff.write_text("diff --git a/app/shop.py b/app/shop.py\n--- a/app/shop.py\n+++ b/app/shop.py\n@@ -1,2 +1,4 @@\n" +
                         case["built"] + "\n")
         said = ask("navigator", f"Step: review. {item} The finished branch's diff is {diff}. Review it.", t, repo, ["Read", "Grep", "Glob"])
         patch, ran = "", bool(said)  # the navigator edits nothing; what it must not do is approve

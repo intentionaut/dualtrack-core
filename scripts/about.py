@@ -9,7 +9,6 @@ import pathlib
 import platform
 import shutil
 import subprocess
-import sys
 
 KIT = pathlib.Path(__file__).resolve().parent.parent
 

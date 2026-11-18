@@ -320,6 +320,11 @@ Decisions:
 | 2 | <runner-up 1's exact title> | ... | ... | ... | ... |
 | 3 | <runner-up 2's exact title> | ... | ... | ... | ... |
 
+Done when, by option:
+1. <check a test could make, or what the owner would see>; <another>
+2. <the same for runner-up 1>
+3. <the same for runner-up 2>
+
 Bets:
 - <state proposed | confirmed | running, `new idea` if it is one, the bet, outcome, main metric, guardrails, window, stop rule, how to roll it back> | none
 
@@ -404,6 +409,11 @@ Recommendation:
 Record:
 - gaps: <what is unknown> | <how to find out>
 ```
+
+The owner signs an option's Done when lines by building it, so write each
+option's lines to the same rules as the Recommendation's: outcomes, no absolute
+words, no code change named. On a run with a Confirmed bet the owner signed,
+the loop uses the signed lines, whatever the memo says.
 
 Weekly: `ok` means every input was read. `gaps` means some were not, but the
 rest supports a recommendation. `unknown` means too little could be read to

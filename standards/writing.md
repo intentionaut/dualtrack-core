@@ -12,3 +12,7 @@ Every word a person reads in the product: labels, buttons, messages, help, notic
 8. **Numbers and dates** in the form the audience uses.
 9. **No dead ends**: every message that stops a person says the next step.
 10. **Experience first**: say what the person gets and what changes for them, not how it works. No mechanics, internals or metaphors a non-technical reader must decode. How it works belongs in docs written for engineers.
+11. **The product speaks**: "you" and "your" for the person; "we" only for something done on their behalf. Name roles by skill (Setup, Planning, Safety check), never as characters with names, faces or feelings.
+12. **Action, then consequence**: each step says what happens, then one short line on what it means for the person.
+13. **Defaults as facts**: say what the default is and which setting changes it. No slogans about what never happens.
+14. **Privacy, exactly**: say where data is kept and who reads it. Never "nothing leaves your machine" while a model reads it.

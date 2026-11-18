@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Answer the morning brief. Run from your repo: it finds profile.md there, or in a state repo beside it.
 
-  decide.py 1 [table]          build option 1; the brief gives the table's id, so a pick from an older brief is refused
+  decide.py 1 [table]          build option 1, signing its Done when lines; the brief gives the table's id, so a pick from an older brief is refused
+  decide.py criteria 1 "line" ["line" ...]   build option 1 against your own Done when lines; again before its build starts to change them
   decide.py no "why"           none of today's options; Dualtrack agents will not offer them again
   decide.py done 1 "how"       option 1, or a bet by title, was settled without code
   decide.py try "what"         ask Dualtrack agents for something else; the next run takes it first
@@ -67,6 +68,17 @@ def context_path(profile=None):
 def record(context, line):
     with open(os.path.join(context, "decisions.md"), "a") as f:
         f.write(line + "\n")
+
+
+def sign_row(context, row, lines, by, today):
+    """Sign a picked row's Done when lines, or say why the team will write them unsigned."""
+    if not lines:
+        return "no Done when lines to sign: the team writes them, and the pull request says they are unsigned"
+    bad = loop_lib.lint({"done_when": lines})
+    if bad:
+        return f"not signed: {'; '.join(bad)}. To sign your own, run: decide.py criteria N \"line\" ..."
+    loop_lib.sign(context, row["change"], lines, by, today)
+    return "signed the Done when lines:\n" + "".join(f"- {l}\n" for l in lines).rstrip()
 
 
 def from_doc(text):
@@ -161,7 +173,8 @@ def main(argv, today=None, save=True):
             by = ""
     by = " ".join(by.replace("|", "/").split())[:60] if by and not by.startswith("<") else ""
     signed = f" | by: {by}" if by else ""  # decision provenance: every call names who made it
-    if not argv or (argv[0] not in ("resume", "allow", "areas") and not loop_lib.pick(argv[0]) and len(argv) < 2):
+    if not argv or (argv[0] not in ("resume", "allow", "areas") and not loop_lib.pick(argv[0]) and len(argv) < 2) \
+            or (argv[0] == "criteria" and (len(argv) < 3 or not loop_lib.pick(argv[1]))):
         print(__doc__.strip())
         return 2
     context = context_path()
@@ -188,6 +201,21 @@ def main(argv, today=None, save=True):
         row = rows[int(cmd) - 1]
         kind = f"{row['type']}, {row['priority']}" if row.get("type") and row.get("priority") else ""
         print(loop_lib.confirm(bets, row["change"], today, kind, by, loop_lib.area_named(row.get("reason", ""), context)))
+        print(sign_row(context, row, row.get("done_when") or [], by, today))
+    elif cmd == "criteria":
+        rows = brief["options"]
+        if not 1 <= int(argv[1]) <= len(rows):
+            print(f"no option {argv[1]}: today's brief has {len(rows)}")
+            return 4
+        lines = [" ".join(l.replace("|", "/").split()) for l in argv[2:] if l.strip()]
+        bad = loop_lib.lint({"done_when": lines})
+        if bad:  # the same rule the PM's lines meet: an outcome a test or the owner can see
+            print("not signed: " + "; ".join(bad))
+            return 4
+        row = rows[int(argv[1]) - 1]
+        kind = f"{row['type']}, {row['priority']}" if row.get("type") and row.get("priority") else ""
+        print(loop_lib.confirm(bets, row["change"], today, kind, by, loop_lib.area_named(row.get("reason", ""), context)))
+        print(sign_row(context, row, lines, by, today))
     elif cmd == "try":
         print(loop_lib.confirm(bets, text, today, by=by))
     elif cmd == "done":
@@ -251,7 +279,7 @@ def main(argv, today=None, save=True):
         except OSError:
             known = ""
         if not name or loop_lib.bet_title(title) not in loop_lib.owners(known):
-            print(f'say a bet in the record, and a name: decide.py owner "title" "name"' if name else "say the new owner's name")
+            print('say a bet in the record, and a name: decide.py owner "title" "name"' if name else "say the new owner's name")
             return 4
         with open(bets, "a") as f:
             f.write(("" if not known or known.endswith("\n") else "\n") + f"- {today} | {loop_lib.bet_title_clean(title)} | owner: {name}{signed}\n")

@@ -2,7 +2,7 @@
 # One product manager run, with the handoffs done for you. Builds nothing.
 #
 # Usage: bash scripts/run.sh <profile.md> [weekly|daily]
-# Env:   COST_CAP (default: the profile's Run cap, then none), CLAUDE.
+# Env:   COST_CAP (default: the profile's Run cap; missing becomes 10, written to the profile), CLAUDE.
 set -uo pipefail
 export PYTHONDONTWRITEBYTECODE=1  # a run leaves no .pyc beside the kit, so verify.py can flag any it finds
 
@@ -18,7 +18,11 @@ LIB="python3 $KIT/scripts/loop_lib.py"
 # One reader for every script: profile_value.py drops the notes setup writes beside a value.
 field() { python3 "$KIT/scripts/profile_value.py" "$PROFILE" "$1"; }
 route() { local m; m=$(field Routing | tr ',' '\n' | sed -n "s/^ *$1 //p"); echo "${m:-$2}"; }
-CAP=${COST_CAP:-$(field "Run cap")}; CAP=${CAP:-none}; CAP_SET=$CAP; case $CAP in none|off|no) CAP=100000 ;; esac
+CAP=${COST_CAP:-$(field "Run cap")}
+# A missing Run cap is not "no cap": the run writes the $10 setup suggests and says so. Only an explicit none/off/no means no cap.
+cap_default() { if grep -q '^\*\*Run cap:\*\*' "$1"; then sed -i.bak 's/^\*\*Run cap:\*\*.*/**Run cap:** 10/' "$1" && rm -f "$1.bak"; else printf '\n**Run cap:** 10\n' >> "$1"; fi; }
+[ -n "$CAP" ] || { cap_default "$PROFILE"; CAP=10; echo "Your profile had no Run cap, so it is now \$10 a run. Change **Run cap** in profile.md, or set it to none."; }
+CAP_SET=$CAP; case $CAP in none|off|no) CAP=100000 ;; esac
 CONTEXT=$(field "Context path"); NUMBERS=$(field "Numbers file"); REPO=$(field Repo)
 [ -n "$CONTEXT" ] || { echo "unknown: the profile needs Context path"; exit 4; }
 mkdir -p "$CONTEXT"

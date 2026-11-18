@@ -1,3 +1,4 @@
+# shellcheck shell=bash disable=SC2034 # sourced by the scripts that use these variables
 # Sourced by every script that starts an agent, so they all refuse the same things.
 # LEAN: no user or project settings, plugins, hooks or slash commands, so a write into the repo can't add a hook or
 # permission to the next agent, and the owner's own setup never rides along.

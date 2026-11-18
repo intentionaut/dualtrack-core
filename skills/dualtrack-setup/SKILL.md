@@ -7,6 +7,20 @@ description: Set up Dualtrack, the product operating system for Claude Code, on 
 
 Your job is to set Dualtrack up on the repo in the current folder, for someone who may never have used a terminal. Ask in full, plain sentences. Each time, say what the choice means for them before you ask. Do one step at a time, and say what each step did once it is done.
 
+**Show each step as a card.** A bold title with the skill doing the work, then the question or result, then one grey line starting `↳` that says what it means for them. Number the steps as you go; never promise a total, because some steps are skipped. The skills:
+
+- **⚙ Setup**: the checks, the questions and filing the profile.
+- **◆ Planning**: the preview, the first review and the brief.
+- **⛨ Safety check**: the box below, and anything that stops or holds a run.
+
+For example:
+
+> **⚙ Setup** · step 2
+> Where should Dualtrack keep its record?
+> ↳ Your code repo only ever gets code.
+
+Words follow `<kit>/standards/writing.md`: the product speaks, each action comes with its consequence, and roles are skills, never characters.
+
 **The kit folder** is `${CLAUDE_PLUGIN_ROOT}`, the installed plugin's folder. Commands below write `<kit>` for it. If that path still reads `${CLAUDE_PLUGIN_ROOT}` literally, the skill was copied in by hand, and the kit folder is two levels above this skill's own folder.
 
 ## 0. Check, before anything that costs money
@@ -60,7 +74,7 @@ Ask at most three questions, in this order. Everything else takes its recommende
 
 **Question 2.** Skip it when `local_only` is true. Ask with the AskUserQuestion tool: "Where should Dualtrack keep its record: its notes, numbers, decisions and daily log?"
 - "A private record repo (Recommended)": "Your code repo only ever gets code. One private repo holds the record for all your products, and Dualtrack can run in the cloud." When `state_repo_exists` is false, add: "It does not exist yet: setup creates <state_repo> as a private repo."
-- "This computer only": "Nothing leaves this computer, and the record is kept out of git. Dualtrack can only run on this computer."
+- "This computer only": "The record stays on this computer and out of git. Dualtrack can only run on this computer."
 
 Only if `state_repo_holds` is not empty, say the check's `Dualtrack state` line as it is. Check the `visibility` fact. If it is PUBLIC, say before asking: "This repo is public, so Dualtrack's pull requests and their comments are public too. The record stays out of it either way, and Dualtrack holds a pull request that would show your numbers, an email address or a home path, and tells you why."
 
@@ -90,7 +104,21 @@ python3 <kit>/scripts/setup_apply.py [--record local] [--design yes] [--tests "<
 
 Add `--create-state` only when they chose the record repo and `state_repo_exists` was false. Show its lines as they are, and report only what they say: if a line says NOT pushed, say so. Its last line is the profile path. If it stops, show the reason and stop.
 
-Then offer data. Run `python3 <kit>/scripts/sources.py menu` and show its lines as they are. Ask in plain text: "Connect any of these, so the first brief uses your real data? Each is read-only. Say their names, or skip for now." Skip: go on to section 4. For each name, say its `ask` from `<kit>/sources.json`: that is exactly what Dualtrack reads. Say that what it finds stays in their repos. Then follow sections 2 and 3 of `<kit>/skills/dualtrack-connect/SKILL.md`. One that fails to connect is skipped, not retried.
+Then set up their numbers, so the first brief uses real data. First show this card as it is:
+
+> **⛨ Safety check** · what happens to your numbers
+> - Your notes and numbers stay in your repos, or on this computer if you chose that.
+> - Tools connect read-only. Dualtrack cannot change anything in them.
+> - No Dualtrack server: nothing is sent to Dualtrack's maker.
+> - Claude reads what each step needs, through your own Claude plan.
+> ↳ You can disconnect a tool at any time.
+
+Then ask with the AskUserQuestion tool: "How should Dualtrack see your numbers?"
+- "Connect a tool, read-only (Recommended)": "Dualtrack reads analytics, experiments or your tracker each run."
+- "Paste them into numbers.md": "Type counts by hand in `numbers.md`, next to the profile. Write unknown where you have none."
+- "Skip for now": "The first brief works from your repo and public pages."
+
+Paste: say where `numbers.md` is, from setup_apply's `filed:` line, and go on to section 4. Skip: go on to section 4. Connect: run `python3 <kit>/scripts/sources.py menu`, show its lines as they are, and ask which to connect, by name. For each name, say its `ask` from `<kit>/sources.json`: that is exactly what Dualtrack reads. Say that what it finds stays in their repos. Then follow sections 2 and 3 of `<kit>/skills/dualtrack-connect/SKILL.md`. One that fails to connect is skipped, not retried.
 
 ## 4. First review, and the first call
 

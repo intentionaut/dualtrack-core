@@ -2,7 +2,7 @@
 """Decide whether Dualtrack agents may merge their own ready pull request. A script decides, never an agent.
 
 Usage: merge_gate.py <profile> <run_dir> <pr_number> <head_sha>
-Reads from run_dir: item.json, diff.txt (name-status), numstat.txt, tests.result, navigator.txt,
+Reads from run_dir: item.json, intent.md, diff.txt (name-status), numstat.txt, tests.result, navigator.txt,
 ux-review.txt, code-review.txt, and screens.txt when the repo has a web surface.
 Prints `merged <sha>` (exit 0), or `left for the owner: <the check that failed>` (exit 4).
 Anything it cannot read fails closed. Env: GH (default ghrest.py), CI_WAIT seconds (default 600), CI_POLL (30).
@@ -130,6 +130,9 @@ def gate(profile, run, pr, sha):
     mode = re.search(r"^(?:new file mode 1[02]0755|(?:new file |deleted file |old |new )mode 120000|old mode |new mode ).*$", patch, re.M)
     if mode:
         raise Fail(f"it changes a file mode or a symlink: {mode[0]}")
+    # A run the intent check never reached has no intent.md, and so no line left for after merge.
+    if os.path.exists(os.path.join(run, "intent.md")) and re.search(r": AFTER MERGE: ", read(run, "intent.md")):
+        raise Fail("a Done when line is checked after merge, on the live site")
     for role, name in (("navigator", "navigator.txt"), ("UX review", "ux-review.txt"), ("Code Review", "code-review.txt")):
         first = (read(run, name).splitlines() or [""])[0].strip()
         if first != "APPROVE":

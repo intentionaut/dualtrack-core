@@ -3,7 +3,6 @@ import hashlib
 import hmac
 import http.server
 import json
-import os
 import pathlib
 import subprocess
 import sys

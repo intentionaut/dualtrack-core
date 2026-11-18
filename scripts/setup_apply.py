@@ -117,7 +117,7 @@ def join(name, create=False, share_all=False):
                          if (home / f / "profile.md").exists()), home / decide.repo_name() / "profile.md")
     if not profile_path.exists():
         raise SystemExit(f"stopped: {state_repo} has no {decide.repo_name()}/profile.md; run setup without --join")
-    print(f"- joined: this checkout uses Dualtrack's record, so its calls and runs land in the same place")
+    print("- joined: this checkout uses Dualtrack's record, so its calls and runs land in the same place")
     print(str(profile_path))
     return 0
 

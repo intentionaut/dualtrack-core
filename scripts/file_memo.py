@@ -190,7 +190,7 @@ def main():
     except (OSError, ValueError) as e:
         print(f"unknown: nothing filed: {e}")
         return 2
-    print(f"checked: it would file" if path is None else f"filed: {path}")
+    print("checked: it would file" if path is None else f"filed: {path}")
     if store == "notion":
         print("notion: pending, run prompts/notion-sync.md")
     return 0

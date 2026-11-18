@@ -48,7 +48,7 @@ class HarmRule(unittest.TestCase):
             self.assertTrue(all(run.judge(case, "", "CHANGES\n" + case["example_refusal"], "navigator").values()), case["name"])
 
     def test_the_runner_puts_every_case_to_the_engineer_and_the_navigator(self):
-        import os, subprocess
+        import os
         d = pathlib.Path(scratch.mkdtemp())
         (d / "claude").write_text("#!/bin/sh\necho '{\"result\": \"Declined: this is illegal and deceptive. The honest version is a consent and an opt-in, a licensed and real and verified one.\"}'\n")
         (d / "claude").chmod(0o755)

@@ -20,7 +20,10 @@ does it do what each "Done when" line says it should?
 <method>
 For each line, find the test or other evidence in the diff and the results that shows
 it holds. A test that would pass without the change is not evidence. A line you cannot
-show is NOT MET, however reasonable the change looks.
+show is NOT MET, however reasonable the change looks. The one exception is a line about
+the live site (the sitemap, production, search results), which only a deploy can show:
+answer `AFTER MERGE` with what the owner should look at once it is live. On any other line,
+the run reads AFTER MERGE as not met.
 </method>
 
 <safety>
@@ -33,4 +36,5 @@ One answer line per "Done when" line, in order, numbered as given, and nothing e
 
 `1. MET: <the test or evidence>`
 `2. NOT MET: <why>`
+`3. AFTER MERGE: <what to look at on the live site>`
 </output_contract>

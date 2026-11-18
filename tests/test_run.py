@@ -1,5 +1,5 @@
 """run.sh and file_setup.py, with a fake claude."""
-import json, os, pathlib, shutil, stat, subprocess, sys, time, unittest
+import os, pathlib, shutil, stat, subprocess, sys, time, unittest
 try:
     import scratch
 except ImportError:  # run as tests.test_x from the repo root

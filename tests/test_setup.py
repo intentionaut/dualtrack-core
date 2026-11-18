@@ -106,7 +106,7 @@ class Setup(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_join_finds_a_record_filed_under_the_folder_name_when_the_repo_name_differs(self):
-        state = self.local_setup()
+        self.local_setup()
         self.git("remote", "set-url", "origin", "https://github.com/jo/shop-app.git")
         bare = self.t / "state.git"; subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
         r = self.apply("--join", "--create-state", STATE_ORIGIN=str(bare))

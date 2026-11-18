@@ -6,12 +6,20 @@
 # scripts/merge_gate.py finds every check holds; otherwise the pull request waits for the owner.
 #
 # Usage: bash scripts/daily_loop.sh <profile.md>
-# Env:   PREFLIGHT (check everything free, run no agent), FORCE_RESEARCH (test runs: go past watch), COST_CAP (default: the profile's Run cap, then none; dollars a run), BASE (default: the remote's default branch), CLAUDE,
+# Env:   PREFLIGHT (check everything free, run no agent), NO_KIT_UPDATE (keep this kit copy; by default a kit on main updates itself), FORCE_RESEARCH (test runs: go past watch), COST_CAP (default: the profile's Run cap, then none; dollars a run), BASE (default: the remote's default branch), CLAUDE,
 #        GH (default scripts/ghrest.py: REST only, as cloud sessions refuse GraphQL), RENDER (scripts/screens.sh),
 #        CI_WAIT (seconds the merge gate waits for CI, default 600), APP_TOKEN (company mode's token command, default scripts/app_token.py).
 set -uo pipefail
 
 KIT=$(cd "$(dirname "$0")/.." && pwd)
+# An old kit is the likeliest cause of a fault already fixed: a kit on main updates itself, then runs the new copy.
+# NO_KIT_UPDATE=1 keeps this copy. The if-block is parsed whole before it runs, so the pull cannot change it mid-read.
+if [ -z "${DUALTRACK_UPDATED:-}${NO_KIT_UPDATE:-}" ] && [ "$(git -C "$KIT" rev-parse --abbrev-ref HEAD 2>/dev/null)" = main ]; then
+  kit_was=$(git -C "$KIT" rev-parse HEAD)
+  if git -C "$KIT" pull -q --ff-only 2>/dev/null; then
+    [ "$(git -C "$KIT" rev-parse HEAD)" = "$kit_was" ] || { echo "Dualtrack updated itself to $(git -C "$KIT" rev-parse --short HEAD)."; DUALTRACK_UPDATED=1 exec bash "$0" "$@"; }
+  else echo "Dualtrack could not update itself (git -C $KIT pull --ff-only failed), so this run uses the copy you have."; fi
+fi
 # A kit whose safety files changed since its release is not Dualtrack: stop before anything runs.
 why=$(python3 "$KIT/scripts/tamper.py" check "$KIT") || { echo "$why"; exit 5; }
 . "$KIT/scripts/guards.sh"  # LEAN, NO_READ and state_save, shared with run.sh
@@ -39,7 +47,7 @@ export PYTHONDONTWRITEBYTECODE=1
 
 # One reader for every script: profile_value.py drops the notes setup writes beside a value.
 field() { python3 "$KIT/scripts/profile_value.py" "$RUN/profile.md" "$1"; }
-[ -n "$CAP" ] || CAP=$(field "Run cap"); CAP=${CAP:-none}; CAP_SET=$CAP
+[ -n "$CAP" ] || CAP=$(field "Run cap"); CAP_SET=$CAP  # empty here means no cap was set anywhere: stopped below, once stop() exists
 # "none" is the owner's choice of no cap: every call still carries a budget flag, just one no run reaches.
 case $CAP in none|off|no) CAP=100000 ;; esac
 CONTEXT=$(field "Context path"); TESTS=$(field "Test commands")
@@ -53,6 +61,8 @@ case $SETUPVAR in PATH|HOME|TMPDIR|LANG|TERM|GITHUB_TOKEN|PYTHONDONTWRITEBYTECOD
 SETUPTOK=${SETUPVAR:+${!SETUPVAR:-}}
 # route <role> <default>: the model from the profile's Routing line.
 route() { local m; m=$(field Routing | tr ',' '\n' | sed -n "s/^ *$1 //p"); echo "${m:-$2}"; }
+# unlike <model> <builder's model>: a reviewer never runs on the builder's model, since it would share its blind spots.
+unlike() { local m; [ "$1" != "$2" ] && { echo "$1"; return; }; for m in opus sonnet haiku; do [ "$m" != "$2" ] && { echo "$m"; return; }; done; }
 MODE=$(field Mode)
 # The standards layer: core, plus one file per surface the profile names.
 STANDARDS="$KIT/standards/core.md $KIT/standards/checklists.md $KIT/standards/writing.md$(field Surfaces | tr ',|' '\n\n' | sed 's/[^a-z-]//g' | while read -r f; do [ -n "$f" ] && [ -f "$KIT/standards/$f.md" ] && printf ' %s' "$KIT/standards/$f.md"; done)"
@@ -197,6 +207,22 @@ tidy() { [ -n "${CLEAN:-}" ] && [ -n "$(git status --porcelain 2>/dev/null)" ] |
 # The exit code comes from the gate table (loop_lib.py GATES), so the word and the code cannot disagree.
 stop() { log "$1"; tidy; [ -z "$BASE" ] || git checkout -q "$BASE" 2>/dev/null; exit "$($LIB gate-exit "$1")"; }
 
+# A missing Run cap is not "no cap": the run writes the $10 setup suggests and says so. Only an explicit none/off/no means no cap.
+cap_default() { if grep -q '^\*\*Run cap:\*\*' "$1"; then sed -i.bak 's/^\*\*Run cap:\*\*.*/**Run cap:** 10/' "$1" && rm -f "$1.bak"; else printf '\n**Run cap:** 10\n' >> "$1"; fi; }
+[ -n "$CAP" ] || { cap_default "$PROFILE"; cap_default "$RUN/profile.md"; CAP=10; CAP_SET=10; echo "Your profile had no Run cap, so it is now \$10 a run. Change **Run cap** in profile.md, or set it to none."; }
+# "ponytail" with no version is pinned to the installed one, like the Run cap: later plugin updates still need the owner.
+if [ "$(field "Engineer rules")" = ponytail ]; then
+  pv=$(ls "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/cache/ponytail/ponytail" 2>/dev/null | sort -V | tail -1)
+  [ -z "$pv" ] || { for f in "$PROFILE" "$RUN/profile.md"; do sed -i.bak "s/^\*\*Engineer rules:\*\* *ponytail *\$/**Engineer rules:** ponytail $pv/" "$f" && rm -f "$f.bak"; done
+    echo "Your profile named ponytail with no version, so it is now pinned to the installed $pv. A later ponytail update waits until you change **Engineer rules** in profile.md."; }
+fi
+# The oldest Claude Code this kit trusts, as major.minor: every safety guard here is a command-line flag, so an older one may ignore them.
+MIN_CLAUDE=2.1
+CLAUDE_VERSION=$("$CLAUDE" --version 2>/dev/null | grep -Eo '^[0-9]+\.[0-9]+' | head -1)
+[ -n "$CLAUDE_VERSION" ] || stop "stopped: Claude Code's version could not be read from \`$CLAUDE --version\`, so its safety flags cannot be trusted. Update or reinstall it."
+[ "$(printf '%s\n%s\n' "$MIN_CLAUDE" "$CLAUDE_VERSION" | sort -t. -k1,1n -k2,2n | head -1)" = "$MIN_CLAUDE" ] \
+  || stop "stopped: Claude Code $CLAUDE_VERSION is older than $MIN_CLAUDE, which the safety flags need. Update it with \`claude update\`."
+
 # on|off for a profile line; a missing line or a template placeholder is off.
 switch() { case $(field "$1") in on|"on "*) echo on ;; *) echo off ;; esac; }
 WEB=$(field Surfaces | tr ',|' '\n\n' | sed 's/[^a-z]//g' | grep -qx web && echo yes)
@@ -329,6 +355,7 @@ untrusted() { local net=${NET:-no}
     GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null)
   # Only the Setup commands get the Setup token, and only if the loop holds it.
   [ -z "${SETUP_PASS:-}" ] || [ -z "$SETUPTOK" ] || base+=("$SETUPVAR=$SETUPTOK")
+  # shellcheck disable=SC2046 # the last branch leaves $(...) unquoted on purpose: empty, or the one flag
   # Already inside a Dualtrack sandbox (the kit testing itself): macOS cannot nest one, and the outer box still holds.
   if [ "${DUALTRACK_SANDBOXED:-}" = 1 ]; then "${base[@]}" DUALTRACK_SANDBOXED=1 bash -c "$1"
   elif [ "$net" = no ] && command -v sandbox-exec > /dev/null; then "${base[@]}" DUALTRACK_SANDBOXED=1 sandbox-exec -p "$SEATBELT$(write_closed)$(run_closed)" bash -c "$1"
@@ -400,6 +427,7 @@ git_closed() { local d f p=""; for d in "$(real "$GIT_COMMON")" "$(real "$GIT_OW
 # The run folder holds the files every check reads (the profile copy, the diff, the test verdict) and the sources'
 # settings, so branch code can neither read it nor write it, except its own checkout, git folder and home.
 run_closed() { local gd; gd=$(real "$(git rev-parse --git-common-dir 2>/dev/null || echo .)")
+  # shellcheck disable=SC2155 # a failed real gives a path the sandbox then refuses
   local p="(deny file-read* file-write* (subpath \"$(real "$RUN")\"))"
   # The tests' stdout is a file in $RUN: without this, fstat on it is denied and Apple python3 and node print nothing or abort.
   p="$p(allow file-read-metadata (subpath \"$(real "$RUN")\"))"
@@ -407,6 +435,7 @@ run_closed() { local gd; gd=$(real "$(git rev-parse --git-common-dir 2>/dev/null
   echo "$p$(dashboard_closed)$(git_closed)"; }
 net_seatbelt() { local gd h; gd=$(real "$(git rev-parse --git-common-dir 2>/dev/null || echo .)"); h=$(real "$HOME")
   # The run folder holds sources' output, PR comments and MCP settings, so it is closed too, except the tests' own home.
+  # shellcheck disable=SC2155 # a failed write_closed gives an empty rule, which the profile check below rejects
   local p="(version 1)(allow default)$NO_SOCKET$(write_closed)"
   # "open" is for Setup commands: the network stays open for installers, the home folder does not. Installers need
   # name lookups, which go through the resolver's socket: it alone is let through, other Unix sockets (the ssh agent) stay closed.
@@ -477,7 +506,7 @@ ask() {
     rules="$pdir/$v/skills/ponytail/SKILL.md"
     [ -f "$rules" ] || stop "stopped: Engineer rules says ponytail $v, which is not installed; this machine has $have. Read its rules, then write that version in profile.md" ;;
   esac
-  local own= design=
+  local own='' design=''
   [ "$role" = engineer ] && own=$rules
   # Design rules reach design and build only for a web item; DESIGN_NOW says when.
   case $role in product-design|engineer) [ -z "$DESIGN_NOW" ] || design=$RUN/design-rules.md ;; esac
@@ -560,6 +589,8 @@ if ! NET=$TEST_NET untrusted "$TESTS" > "$RUN/base-tests.txt" 2>&1; then
     "$GH" pr checks "$BASE_SHA" > "$RUN/base-ci.json" 2>> "$RUN/err.log" || : > "$RUN/base-ci.json"
     BASE_CI=$($LIB ci-state "$RUN/base-ci.json" "${required:-none}"); baseline_issue "$BASE_CI"
   fi
+  # The sandbox killing the test runner at start is not a failing test: say so, so nobody hunts a bug in their code.
+  grep -qE 'Abort trap|Killed: 9' "$RUN/base-tests.txt" 2>/dev/null && [ "$(uname)" = Darwin ] && stop "stopped: the sandbox stopped your test command from starting, so this is not a failing test and your code is fine. Dualtrack already tried updating itself; this is a fault in Dualtrack, not something you need to fix. Details for the report: $RUN/base-tests.txt"
   case $BASE_CI in
     red) GREEN_FIRST=1 ;;   # red here and in CI: getting main green is today's item, built below
     green) ;;               # red only here: CI is the baseline, and the trail says so
@@ -582,7 +613,7 @@ open=$(python3 -c 'import json,sys; print(sum(p["state"]=="OPEN" for p in json.l
 # Comments from people with write access, posted on the open change after its last commit, are asks Dualtrack agents build
 # on that change's branch. The pushed fix dates the asks, so the next run waits again.
 # shortcut: a comment posted mid-run, before the fix commit, is missed; keep comment ids if that bites.
-ASKS= OPEN_URL=
+ASKS='' OPEN_URL=''
 if [ "$open" != 0 ]; then
   IFS=$'\t' read -r OPEN_N OPEN_BRANCH OPEN_URL OPEN_TITLE < <(python3 -c 'import json,sys
 p = [p for p in json.load(open(sys.argv[1])) if p["state"] == "OPEN"][0]
@@ -603,7 +634,7 @@ print(p["number"], p.get("headRefName") or "", p.get("url") or "", p["title"], s
         *) held=" (checked again: ${gate:-the merge gate gave no answer})" ;;
       esac
     fi
-    ASKS= OPEN_URL=; stop "waiting: a change is still open for review$held"
+    ASKS='' OPEN_URL=''; stop "waiting: a change is still open for review$held"
   fi
 fi
 # PREFLIGHT=1 runs every check above for free and stops before the first agent is paid.
@@ -751,6 +782,8 @@ file "$RUN/product-manager.txt"
 if [ -n "$BET" ]; then
   [ "$code" = 0 ] || { started "held"; stop "held: the confirmed bet was not picked: $BET"; }
   $LIB picked "$RUN/item.json" "$BET" || { started "held"; stop "held: the item is not the confirmed bet: $BET"; }
+  # The owner's pick signed that option's Done when lines: they replace the PM's, so the build is checked against what the owner read.
+  SIGNER=$($LIB sign-apply "$RUN/item.json" "$CONTEXT" "$BET")
 fi
 [ "$code" = 0 ] || stop "quiet: no change today $(cat "$RUN/item.json")"
 $LIB today "$RUN/item.json" "$MODE" "$CONTEXT/today.md"
@@ -760,7 +793,7 @@ if [ "${kind%%$'\t'*}" = brief ]; then
   # The brief goes to the owner, and the runner-up the PM named as buildable is built the same run.
   python3 -c 'import json,sys; b=json.load(open(sys.argv[1])).get("build"); (b or {}).get("kind")=="code" or sys.exit(4); json.dump(b,open(sys.argv[1],"w"))' "$RUN/item.json" \
     || stop "brief for the owner, not built: ${kind#*$'\t'}"
-  log "brief for the owner, in brief-for-owner.md: ${kind#*$'\t'}; building the runner-up"; BET=
+  log "brief for the owner, in brief-for-owner.md: ${kind#*$'\t'}; building the runner-up"; BET=; SIGNER=agents
   $LIB today "$RUN/item.json" "$MODE" "$CONTEXT/today.md"
   kind=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["kind"], d["title"], sep="\t")' "$RUN/item.json")
 fi
@@ -811,7 +844,7 @@ for p in re.split(r"&&|\|\||;", sys.argv[1]):
         # The exact part, and its runner with any arguments, so one test file can be run test-first.
         print(" ".join(w)); print(" ".join(w[:3] if len(w) > 2 and w[1] == "-m" else w[:2]) + ":*")' "$TESTS")
 # The Done when lines are locked before the engineer sees them; a resumed branch keeps the lock its first run made.
-[ -n "$RESUME" ] || $LIB lock "$RUN/item.json" "$CONTEXT/criteria.md" "$BRANCH" "$TODAY"
+[ -n "$RESUME" ] || $LIB lock "$RUN/item.json" "$CONTEXT/criteria.md" "$BRANCH" "$TODAY" "${SIGNER:-agents}"
 if [ -z "$RESUME" ]; then
 # Never start a build the budget cannot see through review (about a quarter of a run): the bet carries to the next run, which skips planning.
 left=$(python3 -c 'import sys; print(float(sys.argv[1]) - float(sys.argv[2]) >= float(sys.argv[1]) / 4)' "$CAP" "$SPENT")
@@ -851,7 +884,7 @@ evidence() {
   git -c core.quotepath=false diff --no-textconv --no-ext-diff --no-renames --name-status "$BASE...$BRANCH" > "$RUN/diff.txt"
   git -c core.quotepath=false diff --no-textconv --no-ext-diff --no-renames --numstat "$BASE...$BRANCH" > "$RUN/numstat.txt"
   TEST_PATHS='(^|/)(tests?|spec|__tests__)/|(^|/)test_[^/]*$|[._-](test|spec)\.'
-  # A small change of docs and tests only gets one reviewer on Sonnet: three reviewers cost more than it can break.
+  # A small change of docs and tests only gets one reviewer on Haiku: three reviewers cost more than it can break.
   small=; [ "$(awk '{n+=$1+$2} END {print n+0}' "$RUN/numstat.txt")" -le 60 ] \
     && ! cut -f2 "$RUN/diff.txt" | grep -Ev '\.(md|mdx|txt|json|toml|svg)$' | grep -Eqv "$TEST_PATHS" && small=1
   NET=$TEST_NET untrusted "$TESTS" > "$RUN/tests.txt" 2>&1 && passed=passed || { timed_out; passed=failed; }
@@ -895,7 +928,7 @@ review() {
     printf 'CHANGES\n1. must fix: the tests fail on this branch. Make them pass%s. If that needs a command your shell cannot run, answer BLOCKED: and name the command.\n%s\n' "${BASE_RED:+, or at least fail no test that main did not already fail}" "$(tail -30 "$RUN/tests.txt")" > "$RUN/navigator.txt"
     echo APPROVE > "$RUN/ux-review.txt"; echo CHANGES >> "$RUN/verdicts.txt"; return
   fi
-  ask navigator "$([ -n "$small" ] && echo sonnet || route navigator opus)" "Review the branch range $BASE..$BRANCH. $REVIEW_NOTE Item: $ITEM. Profile: $PROFILE. Shared brief: $CONTEXT/today.md. Engineer's report: $(cat "$RUN/engineer.txt") The loop ran the tests itself. Tests on this branch: $passed${NONEW:+, meaning no new failures: main already fails the same tests (the baseline)}. Tests with the code put back: $first. Last lines of output: $(tail -30 "$RUN/tests.txt")" \
+  ask navigator "$(unlike "$([ -n "$small" ] && echo haiku || route navigator opus)" "$(route engineer sonnet)")" "Review the branch range $BASE..$BRANCH. $REVIEW_NOTE Item: $ITEM. Profile: $PROFILE. Shared brief: $CONTEXT/today.md. Engineer's report: $(cat "$RUN/engineer.txt") The loop ran the tests itself. Tests on this branch: $passed${NONEW:+, meaning no new failures: main already fails the same tests (the baseline)}. Tests with the code put back: $first. Last lines of output: $(tail -30 "$RUN/tests.txt")" \
     Read Glob Grep
   firm "$RUN/navigator.txt"; head -1 "$RUN/navigator.txt" >> "$RUN/verdicts.txt"
   # A visible change also gets UX review, against the design in the shared brief.
@@ -914,7 +947,7 @@ review() {
     if [ -n "$WEB" ] && grep -q '^failed' "$RUN/screens.txt"; then
       printf 'CHANGES\n1. must fix: the changed pages could not be rendered, so nobody has seen them: %s\n' "$(head -1 "$RUN/screens.txt")" > "$RUN/ux-review.txt"
     else
-      ask ux-review "$(route review sonnet)" "Review the branch range $BASE..$BRANCH. $REVIEW_NOTE Item: $ITEM. Profile: $PROFILE. Standards: $STANDARDS. Shared brief: $CONTEXT/today.md. Design checks output: $(cat "$RUN/design-checks.txt" 2>/dev/null || echo none). Screenshots: $shots" \
+      ask ux-review "$(unlike "$(route review sonnet)" "$(route engineer sonnet)")" "Review the branch range $BASE..$BRANCH. $REVIEW_NOTE Item: $ITEM. Profile: $PROFILE. Standards: $STANDARDS. Shared brief: $CONTEXT/today.md. Design checks output: $(cat "$RUN/design-checks.txt" 2>/dev/null || echo none). Screenshots: $shots" \
         Read Glob Grep
     fi
     firm "$RUN/ux-review.txt"; head -1 "$RUN/ux-review.txt" >> "$RUN/ux-verdicts.txt"
@@ -924,6 +957,7 @@ approved() { [ "$(head -1 "$RUN/navigator.txt")" = APPROVE ] && [ "$(head -1 "$R
 : > "$RUN/ux-verdicts.txt"
 review
 # Two fix rounds: a stop here throws away the planning, which costs more than a round.
+# shellcheck disable=SC2034 # the loop variable only counts the two rounds
 for round in 1 2; do
   approved && break
   ask engineer "$(route engineer sonnet)" "The reviewers asked for changes on $BRANCH. If one needs a command your shell cannot run, answer BLOCKED: and name it. Make them and commit. Change only what they name. Then compare your diff with the design in the shared brief, $CONTEXT/today.md, and put back any sentence or step of it you dropped. Fix the should-fix items too unless one contradicts the design. Navigator: $(cat "$RUN/navigator.txt") UX review: $(cat "$RUN/ux-review.txt") $SHELL_NOTE" "${ENGINE[@]}"
@@ -978,7 +1012,7 @@ while read -r f; do { [ "$f" -ef "$PROFILE" ] || [ "$f" = "${DUALTRACK_PROFILE_I
 # the loop cannot read, stops the run here with the line named; the answers go in the pull request.
 criteria=$($LIB criteria-list "$RUN/item.json"); : > "$RUN/intent.md"
 if [ -n "$criteria" ]; then  # an item rebuilt from a pull request's asks has none
-  ask intent-check "$(route intent-check opus)" "Check the intent of the branch range $BASE..$BRANCH. Done when lines, numbered (locked, the owner's criteria): $criteria. $REVIEW_NOTE Tests on this branch: $passed. Last lines of output: $(tail -30 "$RUN/tests.txt")" Read Glob Grep
+  ask intent-check "$(unlike "$(route intent-check opus)" "$(route engineer sonnet)")" "Check the intent of the branch range $BASE..$BRANCH. Done when lines, numbered (locked, the owner's criteria): $criteria. $REVIEW_NOTE Tests on this branch: $passed. Last lines of output: $(tail -30 "$RUN/tests.txt")" Read Glob Grep
   why=$($LIB intent "$RUN/item.json" "$RUN/intent-check.txt") || { started "stopped"; stop "stopped: $why; no pull request was opened"; }
   printf '%s\n' "$why" > "$RUN/intent.md"
 fi
@@ -1020,7 +1054,11 @@ $LIB trail "$RUN/facts.json" "$KIT/.github/pull_request_template.md" > "$RUN/bod
 if grep -q '^Note:' "$RUN/navigator.txt"; then
   { echo; echo "## Dualtrack navigator's notes"; grep '^Note:' "$RUN/navigator.txt" | sed 's/^Note: */- /'; } >> "$RUN/body.md"
 fi
-[ -z "$(tr -d '[:space:]' < "$RUN/intent.md")" ] || { echo; echo "## Dualtrack intent check"; cat "$RUN/intent.md"; } >> "$RUN/body.md"
+# Who signed the lines the intent check read: the owner's name, or agents when the owner never saw them.
+signer=$(grep -F "| $BRANCH |" "$CONTEXT/criteria.md" 2>/dev/null | tail -1 | sed -n 's/.*| signed-by: //p')
+[ -z "$(tr -d '[:space:]' < "$RUN/intent.md")" ] || { echo; echo "## Dualtrack intent check"
+  [ -z "$signer" ] || { [ "$signer" = agents ] && echo "Done when lines written by Dualtrack agents; you did not sign them." || echo "Done when lines signed by $signer."; echo; }
+  cat "$RUN/intent.md"; } >> "$RUN/body.md"
 if grep -q '^Note:' "$RUN/ux-review.txt"; then
   { echo; echo "## Dualtrack UX reviewer's notes"; grep '^Note:' "$RUN/ux-review.txt" | sed 's/^Note: */- /'; } >> "$RUN/body.md"
 fi

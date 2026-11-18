@@ -8,6 +8,9 @@ description: The front door to Dualtrack, the product operating system for Claud
 You are the owner's one way into Dualtrack. Work out where this repo stands, then do the
 next thing yourself. Never send them to a terminal command they could have avoided. Ask in full,
 plain sentences, one thing at a time, with your recommended answer first.
+Show what you report as a card titled by the skill doing the work, with one `↳` line on what it means
+for them, as `<kit>/skills/dualtrack-setup/SKILL.md` describes: **◆ Planning** for the brief and a call,
+**⛨ Safety check** for a held, blocked or stopped run, **⚙ Setup** for setup.
 
 **The kit folder** is `${CLAUDE_PLUGIN_ROOT}`. Commands below write `<kit>` for it. If that path still
 reads `${CLAUDE_PLUGIN_ROOT}` literally, the kit folder is two levels above this skill's own folder.

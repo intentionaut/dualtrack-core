@@ -33,7 +33,8 @@ Subcommands:
   baseline-issue <tests.txt> <sha> <ci> <body> <comment> [--no-output]   write the issue and its repeat comment; print fingerprint, tab, title
   find-issue <issues.json> <fingerprint>   print the open issue's number; exit 4 if none carries it
   green-item <tests.txt>                print the "Get main green" item
-  lock <item.json> <criteria.md> <branch> <date>   record the SHA-256 of the item's Done when lines against the branch
+  lock <item.json> <criteria.md> <branch> <date> [signer]   record the SHA-256 of the item's Done when lines against the branch, and who signed them
+  sign-apply <item.json> <context> <bet>   put the owner's signed Done when lines for the bet into the item; print who signed (agents when nobody)
   lock-check <item.json> <criteria.md> <branch>    exit 4 and say why if those lines changed since the lock
   lint <item.json>                      exit 4 and say which Done when lines are unprovable: absolute words or an embedded solution
   criteria-list <item.json>             the Done when lines, numbered, on one line
@@ -49,7 +50,6 @@ import unicodedata
 import profile_value  # noqa: E402
 import subprocess
 import sys
-import unicodedata
 import urllib.parse
 
 STOP = {
@@ -105,8 +105,8 @@ def criteria(item):
 
 
 def locked(text, branch):
-    """The fingerprint recorded for a branch (`- date | branch | sha` lines), the last one; None when there is none."""
-    hits = [c[2] for c in ([x.strip() for x in l.split("|")] for l in text.splitlines() if l.startswith("- ")) if len(c) == 3 and c[1] == branch]
+    """The fingerprint recorded for a branch (`- date | branch | sha [| signed-by: who]` lines), the last one; None when there is none."""
+    hits = [c[2] for c in ([x.strip() for x in l.split("|")] for l in text.splitlines() if l.startswith("- ")) if len(c) in (3, 4) and c[1] == branch]
     return hits[-1] if hits else None
 
 
@@ -135,20 +135,30 @@ def lint(item):
     return out
 
 
+# A Done when line only a deploy can show: the live site, production, the sitemap or search results.
+LIVE = re.compile(r"\blive (site|sitemap|page|url)s?\b|\b(in|on) production\b|\bdeployed\b|\bsearch console\b|\bindexed\b", re.I)
+
+
+def deferrable(line):
+    """True when the line is about the live site, so the intent check may leave it to check after merge."""
+    return bool(LIVE.search(str(line)))
+
+
 def intent(item, answer):
-    """(ok, lines) from the intent check's answer: one `n. MET: why` or `n. NOT MET: why` per Done when line.
+    """(ok, lines) from the intent check's answer: one `n. MET: why`, `n. NOT MET: why` or `n. AFTER MERGE: what to look at`
+    per Done when line. AFTER MERGE passes only on a line about the live site; code decides which, never the agent.
     Missing, repeated, extra or unlabelled lines read as not met, with no lines."""
     done = item.get("done_when") or []
     done = [done] if isinstance(done, str) else done
     got = {}
-    for m in re.finditer(r"^\s*(\d+)[.)]\s*(NOT MET|MET):[ \t]*(\S.*)$", answer, re.M):
+    for m in re.finditer(r"^\s*(\d+)[.)]\s*(NOT MET|AFTER MERGE|MET):[ \t]*(\S.*)$", answer, re.M):
         if int(m[1]) in got:
             return False, []
         got[int(m[1])] = (m[2], m[3].strip())
     if not done or sorted(got) != list(range(1, len(done) + 1)):
         return False, []
     lines = [f"{done[n - 1]}: {got[n][0]}: {got[n][1]}" for n in sorted(got)]
-    return all(v == "MET" for v, _ in got.values()), lines
+    return all(v == "MET" or (v == "AFTER MERGE" and deferrable(done[n - 1])) for n, (v, _) in got.items()), lines
 
 
 def credential(status, env):
@@ -216,7 +226,7 @@ def pick(arg):
 
 def plain(text):
     """Text for the owner's terminal: no C0/C1 controls (escape codes) bar newline and tab, no Cf (bidi, zero-width)."""
-    return "".join(c for c in str(text) if c in "\n\t" or not (unicodedata.category(c) in ("Cc", "Cf")))
+    return "".join(c for c in str(text) if c in "\n\t" or unicodedata.category(c) not in ("Cc", "Cf"))
 
 
 def oneline(text):
@@ -230,6 +240,8 @@ def bet_title(text):
 
 def bet_title_clean(text):
     text = re.sub(r"\s*\(new idea\)\s*$", "", text.strip()).strip()
+    # A title that opens "Confirmed by owner:" reads as an agent claiming the owner's call wherever a memo quotes it, so every run holds.
+    text = re.sub(r"^confirmed by owner\s*[:.,-]\s*", "", text, flags=re.I).strip()
     return text[1:-1].strip() if len(text) > 1 and text[0] == text[-1] == "`" and text.count("`") == 2 else text
 
 
@@ -524,8 +536,53 @@ def area_of(paths, product_areas):
     return hit
 
 
+def option_lines(memo, rows):
+    """Each row's Done when lines, from the memo's `Done when, by option:` block (`N. line; line`).
+    An older memo has only the Recommendation's `Done when:` line, which belongs to the row with its title."""
+    by = {}
+    block = re.search(r"^Done when, by option:[ \t]*\n((?:[ \t]*\d+\..*\n?)+)", memo, re.M)
+    for m in re.finditer(r"^[ \t]*(\d+)\.[ \t]*(.+)$", block[1] if block else "", re.M):
+        by[int(m[1])] = [l.strip() for l in m[2].split(";") if l.strip()]
+    if not by:
+        rec = re.search(r"^Recommendation:[ \t]*\n(.+)", memo, re.M)
+        done = re.search(r"^Done when:[ \t]*(.+)$", memo[rec.end():] if rec else "", re.M)
+        for n, r in enumerate(rows, 1):
+            if rec and done and bet_title(r["change"]) == bet_title(rec[1]):
+                by[n] = [l.strip() for l in done[1].split(";") if l.strip()]
+    for n, r in enumerate(rows, 1):
+        r["done_when"] = by.get(n, [])
+    return rows
+
+
+def signed_path(context):
+    return os.path.join(context, "signed.json")
+
+
+def signed_for(context, bet):
+    """The Done when lines the owner signed for a bet, with who and when; None when none were signed."""
+    try:
+        return json.load(open(signed_path(context))).get(bet_title(bet))
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def sign(context, title, lines, by, date):
+    """Record the owner's signature on a bet's Done when lines. The latest signature before the lock wins."""
+    try:
+        all_ = json.load(open(signed_path(context)))
+    except (OSError, ValueError):
+        all_ = {}
+    all_[bet_title(title)] = {"title": bet_title_clean(title), "lines": lines, "by": by or "owner", "date": date}
+    with open(signed_path(context), "w") as f:
+        json.dump(all_, f, indent=2); f.write("\n")
+
+
 def options(memo):
     """The Decisions table rows as dicts, or the Recommendation title alone when a memo has no table."""
+    return option_lines(memo, table_rows(memo))
+
+
+def table_rows(memo):
     rows = []
     for line in memo.splitlines():
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
@@ -589,6 +646,8 @@ GATES = [
      "Nothing for you to do: the budget ran short, and the next run carries on where this one stopped.", ""),
     (r"stopped: the tests fail on", BLOCKED, "could not start: your tests fail",
      "Your tests fail before Dualtrack agents change anything. Fix them on your main branch, and the next run carries on.", ""),
+    (r"stopped: the sandbox stopped your test command", BLOCKED, "could not start: the sandbox stopped the tests",
+     "This is a fault in Dualtrack, not in your code. Dualtrack already updated itself; if the next run stops the same way, report it with the file named above.", ""),
     (r"stopped: (no sandbox|Company mode needs a sandbox|the sandbox cannot run tests)", BLOCKED, "could not start: no sandbox",
      "Branch code has no sandbox on this machine, so nothing ran. Install bubblewrap (the reason above has the exact steps), then run again.", ""),
     (r"stopped: the Setup commands failed", BLOCKED, "could not start: setup failed",
@@ -599,6 +658,8 @@ GATES = [
      "A tool the profile asks for is not installed. Install it as the reason above says, then run again.", ""),
     (r"stopped: (this repo is your home folder|the Context path is inside this repo|Test network is on|there is no \S+ branch|the Sources line names|source \S+ is not read-only|the state checkout has uncommitted)",
      BLOCKED, "could not start: the profile or folder needs a fix", "The profile or folder needs a change before the next run. The reason above says which; fix it, then run again.", ""),
+    (r"stopped: Claude Code('s version| \S+ is older)", BLOCKED, "could not start: Claude Code needs an update",
+     "Update Claude Code, as the reason above says; then run again.", ""),
     (r"stopped: (Claude Code is|company mode:)", BLOCKED, "could not start: sign-in",
      "Dualtrack cannot sign in the way the profile asks. The reason above says how to fix it; then run again.", ""),
     (r"stopped: (another run|a run started on|could not take the run lock)", BLOCKED, "could not start: another run is going",
@@ -836,6 +897,10 @@ def morning(memo, outcome, date, kit="", context="", cap="", ask=""):
     if rows:
         out += "\n## Decisions for you\n\n| # | Change | Type | Priority | Reason | Expected outcome |\n|---|---|---|---|---|---|\n"
         out += "".join(f"| {n} | {r['change']} | {r.get('type', '')} | {r.get('priority', '')} | {r['reason']} | {r['expected']} |\n" for n, r in enumerate(rows, 1))
+        if any(r.get("done_when") for r in rows):
+            # The Done when lines are what the build is checked against. Building an option signs its lines.
+            out += "\n**Done when.** Building an option signs these lines as the check its build must pass:\n\n"
+            out += "".join(f"{n}. " + ("; ".join(r["done_when"]) if r.get("done_when") else "none written: the team writes them, unsigned") + "\n" for n, r in enumerate(rows, 1))
     table = table_id(rows)
     # Allow only where a real question exists: the loop's own ask names the bet, a memo's "Owner question:" never does.
     allow = bool(row and row["offer"] == "allow" and question and bet)
@@ -847,7 +912,10 @@ def morning(memo, outcome, date, kit="", context="", cap="", ask=""):
                        f"`{decide} result \"{o['title']}\" helped|no|unclear \"evidence\"`\n" for o in late)
     out += "\n## Your input\n\n"
     if rows:
-        out += f"- Build one: `{decide} 1 {table}`\n- Settled without code: `{decide} done 1 \"how\"`\n- None of these: `{decide} no \"why\"`\n"
+        out += f"- Build one: `{decide} 1 {table}`\n"
+        if any(r.get("done_when") for r in rows):
+            out += f"- Build one with your own Done when lines: `{decide} criteria 1 \"first line\" \"second line\"`\n"
+        out += f"- Settled without code: `{decide} done 1 \"how\"`\n- None of these: `{decide} no \"why\"`\n"
     out += f"- Ask for something else: `{decide} try \"what you want\"`\n"
     if allow:
         out += f"- Let it through: `{decide} allow`\n"
@@ -867,7 +935,8 @@ def morning(memo, outcome, date, kit="", context="", cap="", ask=""):
 def table_id(rows):
     """Four characters that name this Decisions table, so a pick typed from an older brief can't land on a new row."""
     import hashlib
-    return hashlib.sha1(json.dumps([r.get("change") for r in rows]).encode()).hexdigest()[:4]
+    # The Done when lines count too: a pick signs them, so lines that changed since the owner read them are not signed.
+    return hashlib.sha1(json.dumps([[r.get("change"), r.get("done_when") or []] if r.get("done_when") else r.get("change") for r in rows]).encode()).hexdigest()[:4]
 
 
 VERDICTS = {"helped": "Helped", "no": "Did not help", "unclear": "Unclear"}
@@ -1581,7 +1650,18 @@ def main(argv):
         # The acceptance criteria as they stood before any agent worked on them. Append-only, like the rest of the record.
         item = json.load(open(args[0]))
         with open(args[1], "a") as f:
-            f.write(f"- {args[3]} | {args[2]} | {criteria(item)}\n")
+            f.write(f"- {args[3]} | {args[2]} | {criteria(item)}" + (f" | signed-by: {args[4]}" if len(args) > 4 else "") + "\n")
+    elif cmd == "sign-apply":
+        # Code, not the PM prompt, keeps the owner's lines: whatever the PM wrote, the signed lines are the ones built and checked.
+        entry = signed_for(args[1], args[2])
+        if entry and entry.get("lines"):
+            item = json.load(open(args[0]))
+            item["done_when"] = entry["lines"]
+            with open(args[0], "w") as f:
+                json.dump(item, f)
+            print(" ".join(str(entry.get("by") or "owner").replace("|", "/").split()))
+        else:
+            print("agents")
     elif cmd == "lock-check":
         try:
             was = locked(open(args[1]).read(), args[2])

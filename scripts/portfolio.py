@@ -6,7 +6,6 @@ Usage: python3 scripts/portfolio.py <state repo>
 import json
 import os
 import pathlib
-import re
 import profile_value  # noqa: E402
 import sys
 

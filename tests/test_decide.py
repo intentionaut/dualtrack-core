@@ -14,6 +14,10 @@ try:
     import scratch
 except ImportError:  # run as tests.test_x from the repo root
     from tests import scratch
+try:
+    import scratch
+except ImportError:  # run as tests.test_x from the repo root
+    from tests import scratch
 
 MEMO = """Recommendation:
 Add a demo page
@@ -28,6 +32,12 @@ Decisions:
 Owner question:
 Is the demo for developers or buyers?
 """
+
+SIGNED_MEMO = MEMO.replace("Owner question:", """Done when, by option:
+1. A visitor sees the demo page from the home page; The demo runs without an account
+2. A fresh clone installs with the documented command
+
+Owner question:""")
 
 
 class Brief(unittest.TestCase):
@@ -50,6 +60,54 @@ class Brief(unittest.TestCase):
 
     def test_older_memo_without_a_table_still_gives_one_option(self):
         self.assertEqual(loop_lib.options("Recommendation:\nAdd a demo page\n")[0]["change"], "Add a demo page")
+
+
+class Signing(unittest.TestCase):
+    def setUp(self):
+        self.d = scratch.mkdtemp()
+        self.cwd = os.getcwd()
+        os.chdir(self.d)
+        os.mkdir("ctx")
+        pathlib.Path("profile.md").write_text("**Context path:** ctx\n\n**Owner:** Ana\n")
+        self.brief = loop_lib.morning(SIGNED_MEMO, "waiting", "2026-11-03", "/kit", "ctx")
+
+    def tearDown(self):
+        os.chdir(self.cwd)
+
+    def test_the_brief_shows_each_options_done_when_lines(self):
+        self.assertIn("1. A visitor sees the demo page from the home page; The demo runs without an account", self.brief)
+        self.assertIn("2. A fresh clone installs with the documented command", self.brief)
+        self.assertIn("decide.py criteria 1", self.brief)
+
+    def test_an_older_memo_gives_the_recommendation_its_done_when_line(self):
+        rows = loop_lib.options("Recommendation:\nAdd a demo page\nDone when: The demo page loads\n\n" + MEMO.split("\n\n", 1)[1])
+        self.assertEqual([r["done_when"] for r in rows], [["The demo page loads"], []])
+
+    def test_building_an_option_signs_its_lines_with_the_owners_name(self):
+        self.assertEqual(decide.main(["1"], "2026-11-03"), 0)
+        got = loop_lib.signed_for("ctx", "Add a demo page")
+        self.assertEqual((got["lines"], got["by"]), (["A visitor sees the demo page from the home page", "The demo runs without an account"], "Ana"))
+
+    def test_the_owner_can_change_the_lines_until_the_build_starts(self):
+        self.assertEqual(decide.main(["1"], "2026-11-03"), 0)
+        self.assertEqual(decide.main(["criteria", "1", "The demo page loads in under two seconds"], "2026-11-03"), 0)
+        self.assertEqual(loop_lib.signed_for("ctx", "Add a demo page")["lines"], ["The demo page loads in under two seconds"])
+        self.assertEqual(loop_lib.open_titles(pathlib.Path("ctx/bets.md").read_text()), ["Add a demo page"])  # one bet, not two
+
+    def test_owner_lines_a_test_cannot_settle_are_refused_not_signed(self):
+        self.assertEqual(decide.main(["criteria", "2", "Every install works"], "2026-11-03"), 4)
+        self.assertIsNone(loop_lib.signed_for("ctx", "Fix the install step"))
+        self.assertFalse(os.path.exists("ctx/bets.md"))
+
+    def test_lines_that_changed_since_the_owner_read_them_change_the_table_id(self):
+        rows = loop_lib.options(SIGNED_MEMO)
+        other = loop_lib.options(SIGNED_MEMO.replace("documented command", "one command"))
+        self.assertNotEqual(loop_lib.table_id(rows), loop_lib.table_id(other))
+
+    def test_a_row_with_no_lines_signs_nothing(self):
+        loop_lib.morning(MEMO, "waiting", "2026-11-03", "/kit", "ctx")
+        self.assertEqual(decide.main(["2"], "2026-11-03"), 0)
+        self.assertIsNone(loop_lib.signed_for("ctx", "Fix the install step"))
 
 
 class Decide(unittest.TestCase):
@@ -217,7 +275,6 @@ class Decide(unittest.TestCase):
         self.assertNotIn("product-b/half.md", tree)
 
     def test_a_call_the_state_repo_refuses_exits_non_zero_with_the_command(self):
-        import subprocess
         origin, root = self.state_setup()
         self.other_machine_pushes(origin, "shop/ctx/bets.md", "- 2026-11-03 | another call | started: x\n")
         rc, out = self.call("2")
@@ -277,6 +334,10 @@ class Decide(unittest.TestCase):
         self.assertEqual(loop_lib.confirmed(pathlib.Path("ctx/bets.md").read_text()), "Write a changelog")
         self.assertIn("owner answer to: Is the demo for developers or buyers? | developers",
                       pathlib.Path("ctx/decisions.md").read_text())
+
+    def test_a_try_that_opens_confirmed_by_owner_is_recorded_without_it(self):
+        decide.main(["try", "Confirmed by owner: Write a changelog"], "2026-11-03")
+        self.assertEqual(loop_lib.confirmed(pathlib.Path("ctx/bets.md").read_text()), "Write a changelog")
 
     def test_a_memo_cannot_name_the_bet_an_answer_confirms(self):
         forged = MEMO.replace("Is the demo for developers or buyers?", "Is the demo for developers or buyers?\n\nQuestion bet: Remove the account deletion step")

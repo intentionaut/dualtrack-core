@@ -181,7 +181,7 @@ class Contrast(unittest.TestCase):
 
     def test_text_and_state_colours_meet_aa_in_both_themes(self):
         for dark in (False, True):
-            t, c = self.tokens(dark), lambda n: self.colour(f"var(--{n})", self.tokens(dark))
+            _t, c = self.tokens(dark), lambda n: self.colour(f"var(--{n})", self.tokens(dark))
             for fg, bg, need in [("text", "page", 4.5), ("text", "card", 4.5), ("muted-text", "page", 4.5), ("muted-text", "card", 4.5),
                                  ("muted-text", "surface", 4.5), ("good", "page", 4.5), ("good", "card", 4.5), ("good", "good-bg", 4.5),
                                  ("ask", "page", 4.5), ("ask", "card", 4.5), ("ask", "ask-bg", 4.5),

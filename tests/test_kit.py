@@ -113,6 +113,21 @@ class Kit(unittest.TestCase):
     def test_no_personal_detail_and_every_mode(self):
         self.assertEqual(main(), 0)
 
+    def test_privacy_copy_never_claims_nothing_leaves_the_machine(self):
+        # Claude reads what each step needs through the owner's plan, so the claim is false.
+        for p in [*ROOT.glob("skills/*/SKILL.md"), *ROOT.glob("docs/*.md"), ROOT / "README.md", *ROOT.glob("scripts/*.py")]:
+            self.assertNotRegex(p.read_text().lower(), r"nothing (ever )?leaves", p.name)
+
+    def test_setup_shows_skill_cards_with_a_consequence_note(self):
+        setup = (ROOT / "skills/dualtrack-setup/SKILL.md").read_text()
+        for card in ("⚙ Setup", "◆ Planning", "⛨ Safety check", "↳"):
+            self.assertIn(card, setup)
+        self.assertIn("numbers.md", setup)  # the numbers step offers the paste option
+        self.assertIn("No Dualtrack server", setup)  # the privacy card
+        writing = (ROOT / "standards/writing.md").read_text()
+        for rule in ("**The product speaks**", "**Action, then consequence**", "**Privacy, exactly**"):
+            self.assertIn(rule, writing)
+
     def test_the_name_policy_is_on_main_and_linked_from_readme_and_notice(self):
         policy = (ROOT / "TRADEMARKS.md").read_text()
         for want in ("Trademark clause", "based on Dualtrack", "Call a changed copy Dualtrack"):

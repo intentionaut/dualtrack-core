@@ -25,6 +25,9 @@ args = " ".join(sys.argv)
 s = os.environ.get("SCENARIO", "")
 if os.environ.get("GH_TOKEN") or "AUTHORIZATION" in os.environ.get("GIT_CONFIG_VALUE_2", ""):
     open(os.environ["TMP_COUNT"] + ".sawtoken", "a").write(" ".join(sys.argv[1:3]) + "\n")
+if sys.argv[1:2] == ["--version"]:
+    print(os.environ.get("FAKE_VERSION", "2.1.326 (Claude Code)"))
+    sys.exit(0)
 if sys.argv[1:3] == ["auth", "status"]:
     print(os.environ.get("FAKE_AUTH", '{"loggedIn": true, "authMethod": "claude.ai", "apiProvider": "firstParty", "subscriptionType": "team"}'))
     sys.exit(0)
@@ -357,6 +360,13 @@ class Loop(unittest.TestCase):
     def test_test_network_on_closes_the_home_folder(self):
         r = self.net_run("on", "cat HOME/notes/secret.txt")
         self.assertIn("stopped: the tests fail on main before any change", r.stdout)
+
+    @unittest.skipUnless(shutil.which("sandbox-exec"), "Seatbelt is macOS only")
+    @unittest.skipIf(os.environ.get("DUALTRACK_SANDBOXED") == "1", "macOS cannot nest the sandbox this test checks")
+    def test_a_runner_killed_at_start_is_not_called_a_failing_test(self):
+        r = self.net_run("on", "echo 'Abort trap: 6' >&2; exit 134")
+        self.assertIn("the sandbox stopped your test command from starting", r.stdout, r.stdout + r.stderr)
+        self.assertNotIn("tests fail on main", r.stdout)
 
     @unittest.skipUnless(shutil.which("sandbox-exec"), "Seatbelt is macOS only")
     @unittest.skipIf(os.environ.get("DUALTRACK_SANDBOXED") == "1", "macOS cannot nest the sandbox this test checks")
@@ -798,11 +808,22 @@ class Loop(unittest.TestCase):
             skill = self.t / f"config/plugins/cache/ponytail/ponytail/{v}/skills/ponytail/SKILL.md"
             skill.parent.mkdir(parents=True); skill.write_text(f"RULES-{v}\n")
         base = self.profile.read_text()
-        for line, says in (("ponytail", "ponytail 5.10.0"), ("ponytail 5.9.9", "this machine has 5.10.0"), ("ponytail ../../x", "this machine has")):
+        for line, says in (("ponytail 5.9.9", "this machine has 5.10.0"), ("ponytail ../../x", "this machine has")):
             with self.subTest(line):
                 self.profile.write_text(base + f"\n**Engineer rules:** {line}\n")
                 r = self.run_loop(CLAUDE_CONFIG_DIR=str(self.t / "config"))
                 self.assertEqual(r.returncode, 4, r.stdout + r.stderr); self.assertIn(says, r.stdout); self.assertFalse(self.opened())
+
+    def test_ponytail_with_no_version_is_pinned_to_the_installed_one(self):
+        for v in ("5.3.2", "5.10.0"):
+            skill = self.t / f"config/plugins/cache/ponytail/ponytail/{v}/skills/ponytail/SKILL.md"
+            skill.parent.mkdir(parents=True); skill.write_text(f"RULES-{v}\n")
+        self.profile.write_text(self.profile.read_text() + "\n**Engineer rules:** ponytail\n")
+        r = self.run_loop(CLAUDE_CONFIG_DIR=str(self.t / "config"))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("pinned to the installed 5.10.0", r.stdout)
+        self.assertIn("**Engineer rules:** ponytail 5.10.0\n", self.profile.read_text())
+        self.assertIn("RULES-5.10.0", self.engineer_prompt_file().read_text())
 
     def test_ponytail_not_installed_says_how_to_install_it(self):
         self.profile.write_text(self.profile.read_text() + "\n**Engineer rules:** ponytail\n")
@@ -1683,7 +1704,7 @@ class Loop(unittest.TestCase):
         import base64, urllib.parse
         key = "sk_live_" + "4eC39HqLyjWDarjtT1zdp7dc"  # joined, as above
         wrapped = (base64.b64encode(key.encode()).decode(), base64.urlsafe_b64encode(b"?" + key.encode()).decode().rstrip("="),
-                   key.encode().hex(), urllib.parse.quote(f"password=hunter2hunter", safe=""),
+                   key.encode().hex(), urllib.parse.quote("password=hunter2hunter", safe=""),
                    "".join(f"%{b:02x}" for b in key.encode()), "sk_live_4eC39Hq\u200bLyjWDarjtT1zdp7dc",
                    "STRIPE=" + base64.b64encode(key.encode()).decode())
         for line in wrapped:
@@ -1950,6 +1971,42 @@ class Loop(unittest.TestCase):
         step = text[text.index("**disprove**"):text.index("**decide**")]
         for want in ("done_when", "observable from outside the code", "testable", "follow from", 'done_when "<line>"'):
             self.assertIn(want, step)
+
+    def no_agent_ran(self):
+        return not pathlib.Path(str(self.t / "count") + ".models").exists()
+
+    def test_a_missing_or_empty_run_cap_becomes_10_and_the_run_goes_on(self):
+        base = self.profile.read_text()
+        for line in ("", "\n**Run cap:**\n", "\n**Run cap:** \n"):
+            self.profile.write_text(base + line)
+            r = self.run_loop(cap="", PREFLIGHT="1")
+            self.assertIn("Your profile had no Run cap, so it is now $10 a run.", r.stdout)
+            self.assertIn("ready:", r.stdout, r.stdout + r.stderr)
+            text = self.profile.read_text()
+            self.assertEqual(text.count("**Run cap:**"), 1, text)
+            self.assertIn("**Run cap:** 10\n", text)
+
+    def test_an_explicit_run_cap_or_none_is_not_stopped(self):
+        base = self.profile.read_text()
+        for value in ("none", "off", "No", "10"):
+            self.profile.write_text(base + f"\n**Run cap:** {value}\n")
+            r = self.run_loop(cap="", PREFLIGHT="1")
+            self.assertIn("ready:", r.stdout, r.stdout + r.stderr)
+
+    def test_cost_cap_in_the_environment_overrides_a_missing_run_cap(self):
+        self.assertIn("ready:", self.run_loop(cap="3.00", PREFLIGHT="1").stdout)
+
+    def test_claude_code_below_the_floor_stops_before_any_agent(self):
+        for version in ("2.0.99 (Claude Code)", "1.9.9", "garbage", ""):
+            for extra in ({}, {"PREFLIGHT": "1"}):
+                r = self.run_loop(FAKE_VERSION=version, **extra)
+                self.assertIn("stopped: Claude Code", r.stdout, r.stdout + r.stderr)
+                self.assertEqual(r.returncode, 4)
+                self.assertTrue(self.no_agent_ran())
+
+    def test_the_floor_version_and_newer_pass(self):
+        for version in ("2.1.0 (Claude Code)", "2.1.326 (Claude Code)", "2.10.0 (Claude Code)", "3.0.0"):
+            self.assertIn("ready:", self.run_loop(FAKE_VERSION=version, PREFLIGHT="1").stdout, version)
 
     def test_broken_sandbox_stops_before_any_agent(self):
         bin_ = self.t / "badbox"; bin_.mkdir()
@@ -2266,10 +2323,25 @@ class Loop(unittest.TestCase):
         r = self.run_loop("toothless"); self.assertTrue(self.opened(), r.stdout + r.stderr)
         self.assertIn("they do not show the change", pathlib.Path(str(self.gh_log) + ".body").read_text())
 
-    def test_small_docs_change_gets_one_sonnet_reviewer(self):
+    def test_small_docs_change_gets_one_reviewer_not_on_the_engineers_model(self):
         self.profile.write_text(self.profile.read_text() + "\n**Routing:** navigator n1\n")
         r = self.run_loop("docs"); self.assertTrue(self.opened(), r.stdout + r.stderr)
-        self.assertEqual(pathlib.Path(str(self.t / "count") + ".models").read_text().split()[-1], "sonnet")
+        models = pathlib.Path(str(self.t / "count") + ".models").read_text().split()
+        self.assertEqual(models[-2:], ["sonnet", "haiku"])  # engineer, then its one reviewer
+
+    def test_a_reviewer_routed_to_the_engineers_model_runs_on_another(self):
+        self.profile.write_text(self.profile.read_text() + "\n**Routing:** engineer opus, navigator opus\n")
+        self.assertEqual(self.run_loop().returncode, 0)
+        models = pathlib.Path(str(self.t / "count") + ".models").read_text().split()
+        self.assertEqual(models[-2:], ["opus", "sonnet"])
+
+    def test_no_reviewer_call_can_take_the_engineers_model(self):
+        text = (KIT / "scripts/daily_loop.sh").read_text()
+        # A reviewer is any agent that reads the built branch; the engineer's own calls are exempt.
+        calls = [l for l in text.splitlines() if "$BASE..$BRANCH" in l and " ask " in f" {l.strip()}" and "ask engineer" not in l]
+        self.assertGreaterEqual(len(calls), 3, calls)
+        for line in calls:
+            self.assertIn('unlike "', line, line)
 
     def test_confirmed_bet_skips_research(self):
         (self.ctx / "bets.md").write_text("- 2026-10-30 | A DESIGN.md page | confirmed by owner\n")
@@ -2288,8 +2360,30 @@ class Loop(unittest.TestCase):
 
     def test_criteria_locked_when_the_item_is_parsed_and_unchanged_passes(self):
         item, _ = self.parked()
-        self.assertRegex((self.ctx / "criteria.md").read_text(), r"\| team/\S+ \| [0-9a-f]{64}\n")
+        self.assertRegex((self.ctx / "criteria.md").read_text(), r"\| team/\S+ \| [0-9a-f]{64} \| signed-by: agents\n")
         r = self.run_loop(); self.assertTrue(self.opened(), r.stdout + r.stderr)
+
+    def test_a_signed_bet_is_built_and_checked_against_the_owners_lines_not_the_pms(self):
+        (self.ctx / "bets.md").write_text("- 2026-10-30 | A DESIGN.md page | confirmed by owner | by: Ana\n")
+        mine = ["The design page lists the colours", "A visitor can find the page from the README"]
+        loop_lib.sign(str(self.ctx), "A DESIGN.md page", mine, "Ana", "2026-10-30")
+        r = self.run_loop("bet"); self.assertTrue(self.opened(), r.stdout + r.stderr)
+        lock = (self.ctx / "criteria.md").read_text().splitlines()[-1]
+        # The PM wrote "kale gives None"; the lock is the owner's lines, under the owner's name.
+        self.assertTrue(lock.endswith(f"| {loop_lib.criteria({'done_when': mine})} | signed-by: Ana"), lock)
+        asked = (self.t / "count.intent").read_text()
+        self.assertIn(mine[0], asked); self.assertNotIn("kale gives None", asked)
+        self.assertIn("Done when lines signed by Ana.", pathlib.Path(str(self.gh_log) + ".body").read_text())
+
+    def test_a_build_the_owner_did_not_sign_says_so_in_the_pull_request(self):
+        r = self.run_loop(); self.assertTrue(self.opened(), r.stdout + r.stderr)
+        self.assertTrue((self.ctx / "criteria.md").read_text().rstrip().endswith("| signed-by: agents"))
+        self.assertIn("you did not sign them", pathlib.Path(str(self.gh_log) + ".body").read_text())
+
+    def test_a_lock_from_before_signing_still_checks_and_a_signed_one_too(self):
+        sha = loop_lib.criteria({"done_when": ["a"]})
+        self.assertEqual(loop_lib.locked(f"- 2026-10-01 | team/x | {sha}\n", "team/x"), sha)
+        self.assertEqual(loop_lib.locked(f"- 2026-10-01 | team/x | {sha} | signed-by: Ana\n", "team/x"), sha)
 
     def test_whitespace_only_change_to_the_criteria_passes(self):
         item, d = self.parked()
@@ -2365,6 +2459,16 @@ class Loop(unittest.TestCase):
         self.assertTrue(loop_lib.intent(item, "1. MET: t\n2. MET: u")[0])
         for bad in ("", "MET: t", "1. MET: t", "1. MET: t\n1. MET: t", "1. MET: t\n2. MET:", "1. MET: t\n3. MET: u", "1. MAYBE: t\n2. MET: u"):
             self.assertFalse(loop_lib.intent(item, bad)[0], bad)
+
+    def test_only_a_live_site_line_may_wait_for_the_merge(self):
+        item = {"done_when": ["/interim-cpo/ is listed in the live sitemap", "the footer links to /interim-cpo/"]}
+        ok, lines = loop_lib.intent(item, "1. AFTER MERGE: open /sitemap.xml once deployed\n2. MET: test_footer\n")
+        self.assertTrue(ok); self.assertEqual(lines[0], "/interim-cpo/ is listed in the live sitemap: AFTER MERGE: open /sitemap.xml once deployed")
+        self.assertFalse(loop_lib.intent(item, "1. MET: t\n2. AFTER MERGE: later\n")[0])  # the agent cannot defer an ordinary line
+        for line in ("the page shows in production", "Search Console reports the page indexed", "the deployed site serves /x/"):
+            self.assertTrue(loop_lib.deferrable(line), line)
+        for line in ("the live preview updates as you type", "a live region announces the error", "the test passes"):
+            self.assertFalse(loop_lib.deferrable(line), line)
 
 
 class Trail(unittest.TestCase):
@@ -2448,7 +2552,7 @@ class OwnerControls(unittest.TestCase):
         patch = lambda path, line: f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n@@ -1 +1,2 @@\n x\n+{line}\n"
         for line in ("@unittest.skip('later')", "    @pytest.mark.skip", "it.skip('a', () => {})", "xit('a', () => {})",
                      "describe.skip('a', () => {})", "test.skip('a', () => {})"):
-            self.assertEqual(loop_lib.stop_code(patch("tests/test_a.py", line)), f"a test skipped: tests/test_a.py", line)
+            self.assertEqual(loop_lib.stop_code(patch("tests/test_a.py", line)), "a test skipped: tests/test_a.py", line)
         self.assertIsNone(loop_lib.stop_code(patch("tests/test_a.py", "def test_ok(self): self.assertTrue(x)")))
         self.assertIsNone(loop_lib.stop_code(patch("src/a.py", "skip_count = 0")))
         self.assertIsNone(loop_lib.stop_code(patch("tests/test_a.py", "    # we do not skip this")))
@@ -2757,3 +2861,18 @@ class Areas(unittest.TestCase):
             self.assertTrue((t.ctx / "areas-proposed.md").exists())
         finally:
             t.doCleanups()
+
+
+class KitSelfUpdate(unittest.TestCase):
+    def test_a_kit_on_main_behind_its_remote_updates_itself_before_running(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = pathlib.Path(d); g = lambda *a, cwd=d: subprocess.run(["git", *a], cwd=cwd, capture_output=True, text=True, check=True)
+            g("clone", "-q", "--bare", "--no-checkout", str(KIT), "origin.git")  # CI checks out a detached HEAD, so go by commit
+            g("--git-dir=origin.git", "fetch", "-q", str(KIT), "HEAD")
+            g("--git-dir=origin.git", "branch", "-f", "main", "FETCH_HEAD"); g("--git-dir=origin.git", "symbolic-ref", "HEAD", "refs/heads/main")
+            g("clone", "-q", "origin.git", "kit"); g("clone", "-q", "origin.git", "ahead")
+            (d / "ahead/README.md").write_text("newer\n")
+            g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "newer", cwd=d / "ahead"); g("push", "-q", "origin", "main", cwd=d / "ahead")
+            r = subprocess.run(["bash", "kit/scripts/daily_loop.sh"], cwd=d, capture_output=True, text=True)
+            self.assertIn("Dualtrack updated itself", r.stdout)
+            self.assertEqual((d / "kit/README.md").read_text(), "newer\n")

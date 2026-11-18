@@ -7,7 +7,6 @@ with an older interpreter when one is installed, and says so when none is.
 import pathlib
 import shutil
 import subprocess
-import sys
 import unittest
 
 KIT = pathlib.Path(__file__).resolve().parent.parent
