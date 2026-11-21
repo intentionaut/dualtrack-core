@@ -1,5 +1,8 @@
 name: test
-# Pull requests run the full suite. Main does not re-run it on every push: each
+# Pull requests run the tests their changed files reach plus a safety set (scripts/affected.py, tests/affected.json),
+# and the full suite when that cannot be worked out. An affected-mode pull request run skips the tests tagged nightly or
+# quarantined (docs/test-value.md); a full-mode one runs the nightly tests too and skips only the quarantined. The nightly and manual runs run the full suite, nothing skipped.
+# Main does not re-run it on every push: each
 # change reached main through a pull request whose run already tested it, and
 # that push run was 846 of 1,970 billed minutes from 14 Oct to 13 Nov 2026.
 # The nightly run covers what a PR run cannot: two PRs that pass apart and fail
@@ -41,18 +44,20 @@ jobs:
     if: ${{ !cancelled() && needs.main-changed.outputs.changed != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Four jobs each run a quarter of the tests (scripts/test_parallel.py).
+    # Four jobs each run a quarter of the tests (scripts/test_parallel.py), balanced by the seconds in tests/durations.json.
+    # Workers default to the runner's CPU count: measured, two workers left a 4-CPU machine about half idle
+    # (a quarter of the suite took 286s on 2 workers, 194s on 4 and 129s on 10 CPUs; more workers than CPUs gained nothing).
     strategy:
       fail-fast: false
       matrix:
         shard: [0, 1, 2, 3]
     env:
       SHARD: "${{ matrix.shard }}/4"
-      TEST_WORKERS: "2"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false  # the suite runs branch code; the token must not sit in .git/config
+          fetch-depth: 0  # the selector diffs against the merge base with the PR's base branch
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
@@ -60,7 +65,14 @@ jobs:
       - run: sudo apt-get install -y -q bubblewrap && sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: git config --global user.name ci && git config --global user.email ci@example.invalid && git config --global init.defaultBranch main
       # Tests dealt across several processes; fails if any fails or the count run differs from the count found.
-      - run: python3 scripts/test_parallel.py
+      # Pull requests: only the tests the diff reaches plus the safety set; the "mode:" line says which ran and why.
+      - if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: python3 scripts/test_parallel.py --changed "origin/$BASE_REF"
+      # Nightly and manual runs: the full suite.
+      - if: github.event_name != 'pull_request'
+        run: python3 scripts/test_parallel.py
       # The suite runs on 3.12, which accepts syntax that 3.9 rejects; the README promises 3.9, so compile every script there too.
       # In the official 3.9 image: ubuntu-latest no longer ships 3.9, so setup-python cannot install it.
       - if: matrix.shard == 0

@@ -62,7 +62,7 @@ could not fix is named, never hidden.
 7. **The tests count.** The loop's run passed, and failed with the code put back, or
    no code changed. When the run says "no new failures", the base already failed
    those tests: the branch must fail only them, and for "Get main green" they must
-   all pass. A skipped, weakened or deleted test to get there is a `must fix`. The loop writes the pull request after you approve, so never
+   all pass. A skipped, weakened or deleted test to get there is a `must fix`. A check the report names as out of date, rewritten as strictly with `was` and `now`, is not weakened: judge that it still checks the same thing. The loop writes the pull request after you approve, so never
    ask for it or its trail.
 8. **The lane is right.** If the item says `"visible": false`, any change a visitor
    would see is a `must fix`.

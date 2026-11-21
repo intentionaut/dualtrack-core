@@ -71,6 +71,10 @@ Only when `status.py` printed an `offer:` line, and only that one. Say plainly w
 `/dualtrack:dualtrack-connect` for Dualtrack's analytics or tracker, **Code Review**, or **Auto-merge**. If they run
 Dualtrack by hand every day, you may offer `docs/schedule.md`'s way of running it daily instead.
 
+## Open the dashboard
+
+When they say `/dualtrack dashboard`, "show my dashboard" or "open the dashboard", skip section 1. If there is no `<context>/dashboard.html` yet, say in one line: "The dashboard appears after the first run." and stop. Otherwise start `python3 <kit>/scripts/dashboard_server.py` from the product repo in the background (it keeps running until 30 minutes pass with no visits). It opens their browser. If the server cannot start, run `open <context>/dashboard.html` instead (on Linux, `xdg-open`), and say its buttons copy the call instead of recording it.
+
 ## When they ask what Dualtrack does
 
 When they ask what Dualtrack does, what a day looks like, or for an example, show `<kit>/docs/example.md` as written, without its heading.

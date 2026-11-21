@@ -44,9 +44,13 @@ In Claude Code, install the plugin once:
 
 From a local clone instead, use its folder: `/plugin marketplace add ./path/to/dualtrack`.
 
+Once installed, type `/dualtrack:dualtrack` to start.
+
 Then, in any product repo, type `/dualtrack:dualtrack`. It checks the repo for free, asks at most three plain questions with a recommended answer each, writes the profile and runs the first review. Your code doesn't change. If you keep the record in a private repo, setup asks first, then creates that repo in your GitHub account and pushes Dualtrack's notes there. No GitHub repo yet? Setup still works and keeps the record on this computer, but without GitHub Dualtrack gives you briefs only, no pull requests. Add a GitHub repo later and it builds your picks. No numbers are needed to start: Dualtrack agents work from public evidence and list what they do not know.
 
 After that, `/dualtrack:dualtrack` is the only command you need. Each time, it does the next thing: shows the brief and takes your call in plain words ("build 2", "none of these, because..."), points you to a pull request to review, asks Dualtrack's question, or runs Dualtrack agents.
+
+To open your dashboard, say `/dualtrack dashboard`, "show my dashboard" or "open the dashboard".
 
 To ask Dualtrack's maker for a feature, type `/dualtrack:dualtrack-request`. It drafts the request with you and opens a filled-in GitHub issue or email; nothing is sent until you submit it.
 

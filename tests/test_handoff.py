@@ -48,6 +48,13 @@ class Handoff(unittest.TestCase):
         self.assertEqual(c["options"][0]["change"], "Fix checkout copy")
         self.assertIn("decide.py try", c["steer"]["ask for something"])
 
+    def test_the_context_pack_carries_the_lessons_tail_apart_from_conventions(self):
+        (self.ctx / "lessons.md").write_text("# Lessons\n\n" + "".join(f"- 2026-11-{d:02d} | held | a | guard:\n" for d in range(1, 26)))
+        c = handoff.context(str(self.profile))
+        self.assertEqual(len(c["lessons"]), 20)
+        self.assertTrue(c["lessons"][-1].startswith("- 2026-11-25"))
+        self.assertEqual(c["conventions"], [])
+
     def test_an_event_is_written_and_names_the_pull_request(self):
         r = subprocess.run([sys.executable, str(KIT / "scripts/handoff.py"), "event", str(self.profile),
                             "opened: Fix checkout copy, https://github.com/o/r/pull/7, navigator APPROVE"], capture_output=True, text=True)

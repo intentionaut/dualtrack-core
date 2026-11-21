@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from file_memo import check_new_ideas
 import loop_lib
 import status
+EVIDENCE = '| Evidence: "I could not find the price" | 3 signals | support inbox 2026-11-02; survey 2026-11-04; session notes 2026-11-09'
 WEEKLY = """Product manager memo, 2026-01-05: gaps
 Mode: acquisition
 Cadence: weekly
@@ -25,7 +26,7 @@ Goal link: owners reading the count, who then act on sign-ups
 Moves: sign-ups
 
 Bets:
-- proposed new idea: a page
+- proposed new idea: a page | Evidence: "I could not find the price" | 3 signals | support inbox 2026-11-02; survey 2026-11-04; session notes 2026-11-09
 
 New ideas:
 - A new page: audience, promise
@@ -98,6 +99,21 @@ class FileMemo(unittest.TestCase):
         msg = self.dir / "msg.md"
         msg.write_text(text)
         return subprocess.run([sys.executable, SCRIPT, profile, msg], capture_output=True, text=True)
+
+    def test_a_proposed_bet_with_no_evidence_or_no_source_is_refused(self):
+        # INT-243: an owner who can't read code decides from the brief, so every proposed bet shows what it rests on.
+        def memo(line):
+            return WEEKLY.replace("Move: Learn", "Move: Fix").replace("- proposed new idea: a page " + EVIDENCE, line)
+        ok = self.run_it(memo("- proposed new idea: a page " + EVIDENCE))
+        self.assertEqual(ok.returncode, 0, ok.stdout)
+        for bad in ("", ' | Evidence: "no price on the page" | 3 signals',  # no source or date
+                    ' | Evidence: "no price on the page" | support inbox 2026-11-02',  # no count
+                    ' | Evidence: none yet | 2 signals | survey 2026-11-04',  # no quote or number
+                    ' | Evidence: 4 of 9 left | 0 signals | survey 2026-11-04'):
+            r = self.run_it(memo("- proposed new idea: a page" + bad))
+            self.assertEqual(r.returncode, 2, bad); self.assertIn("evidence", r.stdout)
+        # only a proposed bet needs it: a confirmed one was judged when it was proposed
+        self.assertEqual(self.run_it(memo("- confirmed: a page")).returncode, 0)
 
     def test_weak_goal_link_cannot_win(self):
         bad = WEEKLY.replace("goal link 3", "goal link 2")

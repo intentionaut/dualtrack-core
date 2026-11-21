@@ -113,7 +113,8 @@
       "getJiraProjectVersions",
       "getAccessibleAtlassianResources"
     ],
-    "ask": "Open bugs and feature requests for this product's project from the last 14 days: counts by type and status, the five most reported with their keys and summaries, and anything reopened. No assignee or reporter names."
+    "ask": "Open bugs and feature requests for this product's project from the last 14 days: counts by type and status, the five most reported with their keys and summaries, and anything reopened. No assignee or reporter names.",
+    "backlog_ask": "Every open issue in the Backlog of the {project} Jira project, up to 20, highest priority first. One finding each: measure is its key, summary and status, like SHOP-12 Fix login (To Do), value is its priority number (1 highest) and unit is priority. No assignee or reporter names."
   },
   "usersnap": {
     "kind": "support",
@@ -237,7 +238,8 @@
     "tools": [
       "*"
     ],
-    "ask": "Open bugs and feature requests for this product's team from the last 14 days: counts by priority and status, the five most requested with their IDs and titles, and anything reopened. No assignee names."
+    "ask": "Open bugs and feature requests for this product's team from the last 14 days: counts by priority and status, the five most requested with their IDs and titles, and anything reopened. No assignee names.",
+    "backlog_ask": "Every open issue in the Backlog of the {project} project in Linear, up to 20, highest priority first. One finding each: measure is its ID, title and status, like ENG-12 Fix login (Todo), value is its priority number (1 urgent, 2 high, 3 medium, 4 low, 0 none) and unit is priority. No assignee names."
   },
   "google_drive": {
     "kind": "docs",

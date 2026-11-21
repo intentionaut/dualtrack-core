@@ -94,6 +94,12 @@ class Gate(unittest.TestCase):
             self.files["diff.txt"] = f"M\t{path}\n"; self.files["numstat.txt"] = f"1\t0\t{path}\n"
             self.refused(what)
 
+    def test_2_a_rewritten_check_waits_for_the_owner_to_approve_it(self):
+        self.files["diff.txt"] = "M\tsrc/a.py\nM\ttests/test_a.py\n"; self.files["numstat.txt"] = "3\t1\tsrc/a.py\n2\t2\ttests/test_a.py\n"
+        self.refused("This change edits a check that was already there. Changed checks always come back to you. "
+                     "The safety card shows what it checked before and what it checks now.")
+        self.assertNotIn("tests/test_a.py", self.gate()[1])  # the file name is for the run log, not the owner
+
     def test_2_ordinary_files_pass_the_path_check(self):
         for path in ("src/a.py", "tests/test_a.py", "README.md", "docs/configure.md", "src/settings_page.tsx"):
             self.assertIsNone(merge_gate.risky(path), path)

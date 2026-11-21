@@ -22,7 +22,7 @@ Done when: it exists
 Size: small
 
 Bets:
-- proposed new idea: a page
+- proposed new idea: a page | Evidence: "I could not find the price" | 3 signals | support inbox 2026-11-02; survey 2026-11-04; session notes 2026-11-09
 
 New ideas:
 - A page: audience, promise

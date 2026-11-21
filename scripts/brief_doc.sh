@@ -9,6 +9,8 @@ PROFILE=$1; STEP=$2; CLAUDE=${CLAUDE:-claude}
 field() { sed -n "s/^\*\*$1:\*\* *//p" "$PROFILE" | head -1; }
 WANT=$(field "Brief doc"); CONTEXT=$(field "Context path"); NAME=$(field "Product"); NAME=${NAME:-this product}
 case $WANT in claude*|http*) ;; *) exit 0 ;; esac
+# A relative Context path is the owner's, from their repo root, as in daily_loop.sh: the loop may call this from its worktree.
+case $CONTEXT in /*|"") ;; *) CONTEXT="${DUALTRACK_OWNER_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/$CONTEXT" ;; esac
 STATE="$CONTEXT/brief-doc.txt"
 DOC=$(cat "$STATE" 2>/dev/null || true); [ -n "$DOC" ] || case $WANT in http*) DOC=$WANT ;; esac
 . "$KIT/scripts/guards.sh"

@@ -30,6 +30,8 @@
 
 **Sources:** <none, or any of pendo, posthog, mixpanel; connect each first with python3 scripts/sources.py setup <name>>
 
+**Backlog:** <optional: linear: <project name> or jira: <project key>, to have Dualtrack rank that project's open Backlog issues as bets. Add the source to Sources too. For a roadmap doc, connect its source (notion, google_drive or confluence) instead>
+
 **Packages:** <none, or each published package as npm:<name> or pypi:<name>; its weekly downloads join the GitHub numbers in sources/public.md>
 
 **Watch:** <number and the level that should trigger a recommendation, or none>

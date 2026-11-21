@@ -17,6 +17,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from loop_lib import lane, protected  # noqa: E402
+from safety_card import rewrote  # noqa: E402
 
 GH = os.environ.get("GH") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "ghrest.py")
 MAX_LINES, MAX_FILES, MAX_BYTES = 50, 3, 20000
@@ -115,6 +116,12 @@ def gate(profile, run, pr, sha):
         what = risky(name)
         if what:
             raise Fail(f"it touches {what}: {name}")
+    # An existing check rewritten in this run is the owner's to approve, so the card can say Not checked and mean it.
+    rewritten = rewrote(read(run, "diff.txt").splitlines(), read(run, "numstat.txt").splitlines())
+    if rewritten:
+        print(f"changed checks: {', '.join(rewritten)}", file=sys.stderr)  # the file names are for the run log, not the owner
+        raise Fail("This change edits a check that was already there. Changed checks always come back to you. "
+                   "The safety card shows what it checked before and what it checks now.")
     lines = 0
     for row in read(run, "numstat.txt").splitlines():
         added, deleted = row.split("\t")[:2]

@@ -215,8 +215,9 @@ def get_bet(record, args, bad):
         elif state.startswith("result: reopened"):
             results.clear()
         elif state.startswith("result:"):
-            verdict, _, evidence = state.removeprefix("result:").strip().partition(":")
-            results.append((c[0], VERDICTS.get(verdict.strip()), evidence.strip() if verdict.strip() in VERDICTS else state.removeprefix("result:").strip()))
+            said = re.sub(r"^(\w+) \((no evidence given)\)$", r"\1: \2", state.removeprefix("result:").strip())
+            verdict, _, evidence = said.partition(":")
+            results.append((c[0], VERDICTS.get(verdict.strip()), evidence.strip() if verdict.strip() in VERDICTS else said))
         elif state.startswith(("confirmed", "picked:", "withdrawn", "allowed", "owner:")):
             calls.append(" | ".join(c[:1] + c[2:]))  # the call, and who made it when the line says
     merged = False
@@ -355,7 +356,7 @@ def handle(msg, env=os.environ):
     err = lambda code, m: {"jsonrpc": "2.0", "id": mid, "error": {"code": code, "message": m}}
     if method == "initialize":
         return ok({"protocolVersion": params.get("protocolVersion") or PROTOCOL, "capabilities": {"tools": {}},
-                   "serverInfo": {"name": "dualtrack", "version": "1.0.2"}})
+                   "serverInfo": {"name": "dualtrack", "version": "1.0.3"}})
     if method == "ping":
         return ok({})
     if method == "tools/list":

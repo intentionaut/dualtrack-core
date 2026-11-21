@@ -39,7 +39,11 @@ def files():
 def main():
     errors = []
     for p in files():
-        for n, line in enumerate(p.read_text().splitlines(), 1):
+        try:
+            text = p.read_text()
+        except UnicodeDecodeError:
+            continue  # binary files (the plugin icon) carry no words to check
+        for n, line in enumerate(text.splitlines(), 1):
             if p.name == "README.md" and line.endswith("<!-- credit -->"):
                 continue  # the two credit lines are the only place the author's name belongs
             hit = BANNED.search(line) or (PRIVATE_BANNED and PRIVATE_BANNED.search(line))
@@ -127,6 +131,10 @@ class Kit(unittest.TestCase):
         writing = (ROOT / "standards/writing.md").read_text()
         for rule in ("**The product speaks**", "**Action, then consequence**", "**Privacy, exactly**"):
             self.assertIn(rule, writing)
+
+    def test_the_kit_reports_one_version_everywhere(self):
+        version = json.loads((ROOT / ".claude-plugin/plugin.json").read_text())["version"]
+        self.assertIn(f'"name": "dualtrack", "version": "{version}"', (ROOT / "scripts/mcp_server.py").read_text())
 
     def test_the_name_policy_is_on_main_and_linked_from_readme_and_notice(self):
         policy = (ROOT / "TRADEMARKS.md").read_text()

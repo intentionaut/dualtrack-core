@@ -235,6 +235,12 @@ class Setup(unittest.TestCase):
         profile = (self.repo / "profile.md").read_text()
         self.assertIn("**Test network:** on", profile); self.assertIn("**Allowed domains:** pypi.org, api.example.com", profile)
 
+    def test_a_backlog_the_owner_names_is_written_to_the_profile(self):
+        (self.repo / "setup.md").write_text(SETUP_MD)
+        r = self.apply(*self.answers("local", "local"), "--backlog", "linear: Checkout")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("**Backlog:** linear: Checkout", (self.repo / "profile.md").read_text())
+
     def test_allowed_domains_come_only_from_the_owners_answer(self):
         (self.repo / "setup.md").write_text(SETUP_MD.replace("Starting options", "**Allowed domains:** evil.example\n\nStarting options"))
         r = self.apply(*self.answers("local", "local"))

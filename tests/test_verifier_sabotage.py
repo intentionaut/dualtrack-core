@@ -109,8 +109,8 @@ class Sabotage(unittest.TestCase):
         self.held(SRC, ("M", "tests/test_a.py", ["        self.assertEqual(a.f(), 'y')"], ["        self.assertTrue(a.f())"]))
         self.held(SRC, ("M", "tests/test_a.py", ["        self.assertAlmostEqual(a.f(), 1.0, places=7)"], ["        self.assertAlmostEqual(a.f(), 1.0, places=0)"]))
 
-    # GAP: a loosened value on a line with no assert passes. Holding every edited test line also held fixes to failing tests.
-    @unittest.expectedFailure
+    # Closed by INT-242: the gate holds any change that rewrites an existing check (removes lines from a test file), so a
+    # loosened value on a line with no assert waits for the owner. A fix to a failing test waits too: that is the price.
     def test_loosening_the_expected_value_on_a_line_with_no_assert_is_held(self):
         self.held(SRC, ("M", "tests/test_a.py", ["        expected = 5"], ["        expected = mock.ANY"]))
 

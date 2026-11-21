@@ -148,6 +148,14 @@ def team_notice(context):
             f"The next one {then}. To hide this: decide.py notice off")
 
 
+def readback(context, title):
+    try:
+        profile = open(find_profile()).read()
+    except OSError:
+        profile = ""
+    return loop_lib.readback(context, title, profile)
+
+
 def main(argv, today=None, save=True):
     if argv == ["--from-doc"]:
         commands = from_doc(sys.stdin.read())
@@ -201,6 +209,10 @@ def main(argv, today=None, save=True):
         row = rows[int(cmd) - 1]
         kind = f"{row['type']}, {row['priority']}" if row.get("type") and row.get("priority") else ""
         print(loop_lib.confirm(bets, row["change"], today, kind, by, loop_lib.area_named(row.get("reason", ""), context)))
+        try:  # the read-back is information; a bad plan row must never stop the Done when lines being signed
+            print(readback(context, row["change"]))
+        except Exception:
+            print("read-back unavailable")
         print(sign_row(context, row, row.get("done_when") or [], by, today))
     elif cmd == "criteria":
         rows = brief["options"]
@@ -215,9 +227,14 @@ def main(argv, today=None, save=True):
         row = rows[int(argv[1]) - 1]
         kind = f"{row['type']}, {row['priority']}" if row.get("type") and row.get("priority") else ""
         print(loop_lib.confirm(bets, row["change"], today, kind, by, loop_lib.area_named(row.get("reason", ""), context)))
+        try:  # the read-back is information; a bad plan row must never stop the Done when lines being signed
+            print(readback(context, row["change"]))
+        except Exception:
+            print("read-back unavailable")
         print(sign_row(context, row, lines, by, today))
     elif cmd == "try":
         print(loop_lib.confirm(bets, text, today, by=by))
+        print(readback(context, text))
     elif cmd == "done":
         what, _, how = text.partition(" ")
         rows = brief["options"]
@@ -255,6 +272,15 @@ def main(argv, today=None, save=True):
             return 2
         with open(os.path.join(context, "allowed.md"), "a") as f:
             f.write(f"- {today} | {loop_lib.bet_title_clean(title)} | allowed by owner{signed}\n")
+        # A locked stop names its area: the allow opens that area for this bet and no other (locked-allowed.md).
+        try:
+            holds = [[x.strip() for x in l[2:].split("|")] for l in open(os.path.join(context, "locked-hold.md")) if l.startswith("- ")]
+        except OSError:
+            holds = []
+        areas = dict.fromkeys(h[1] for h in holds if len(h) == 2 and loop_lib.bet_title(h[0]) == loop_lib.bet_title(title))
+        if areas:
+            with open(os.path.join(context, "locked-allowed.md"), "a") as f:
+                f.writelines(f"- {today} | {loop_lib.bet_title_clean(title)} | {a}{signed}\n" for a in areas)
         # A held change already built waits on its branch: the next run resumes it, so no bet is needed.
         if os.path.exists(os.path.join(context, "resume-branch.txt")):
             print(f"allowed: {title}; the next run picks up the built change")
@@ -269,7 +295,9 @@ def main(argv, today=None, save=True):
             print(f"no shipped bet called \"{title}\"; the inbox lists them")
             return 4
         with open(bets, "a") as f:
-            f.write(f"- {today} | {loop_lib.bet_title_clean(title)} | result: {verdict}: {evidence or 'no evidence given'}{signed}\n")
+            f.write(f"- {today} | {loop_lib.bet_title_clean(title)} | result: {f'{verdict}: {evidence}' if evidence else f'{verdict} (no evidence given)'}{signed}\n")
+        if verdict == "no":
+            loop_lib.lesson(context, today, "no-help", title)  # the title only: the evidence is free text
         print(f"recorded: {title}: {loop_lib.VERDICTS[verdict].lower()}")
     elif cmd == "owner":
         # Hand a bet to someone else. Append-only: the latest owner line wins.

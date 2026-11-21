@@ -72,6 +72,8 @@ Ask at most three questions, in this order. Everything else takes its recommende
 
 **Question 1.** Skip it when they picked a bet from the preview. Ask in plain text, because the answer is theirs in their own words: "What should Dualtrack look at first? For example: rank the open issues we are working on, or get more people to install it. Say none to let Dualtrack agents choose." Show the `work` fact from the check first, so they know what Dualtrack already sees. Their answer, unless it is none, goes to setup_apply as `--focus "<their words>"`.
 
+**Question 1, follow-up.** Only when their answer is about ranking a backlog in Linear or Jira, ask in plain text: "Which source and project? Say it like linear: Checkout or jira: SHOP." That answer goes to setup_apply as `--backlog "<source>: <project>"`. It is read-only: nothing is written back to the tracker.
+
 **Question 2.** Skip it when `local_only` is true. Ask with the AskUserQuestion tool: "Where should Dualtrack keep its record: its notes, numbers, decisions and daily log?"
 - "A private record repo (Recommended)": "Your code repo only ever gets code. One private repo holds the record for all your products, and Dualtrack can run in the cloud." When `state_repo_exists` is false, add: "It does not exist yet: setup creates <state_repo> as a private repo."
 - "This computer only": "The record stays on this computer and out of git. Dualtrack can only run on this computer."
@@ -99,10 +101,15 @@ The call loads the kit's read-deny list first (keys, logins and env files stay u
 Then file it with their answers. This is code too, so every setup files the same way:
 
 ```sh
-python3 <kit>/scripts/setup_apply.py [--record local] [--design yes] [--tests "<the tests fact>"] [--test-network on --allowed-domains "<domains>"] [--focus "<question 1, in their words>"] --run-cap <question 3>
+python3 <kit>/scripts/setup_apply.py [--record local] [--design yes] [--tests "<the tests fact>"] [--test-network on --allowed-domains "<domains>"] [--focus "<question 1, in their words>"] [--backlog "<question 1 follow-up: <source>: <project>>"] --run-cap <question 3>
 ```
 
 Add `--create-state` only when they chose the record repo and `state_repo_exists` was false. Show its lines as they are, and report only what they say: if a line says NOT pushed, say so. Its last line is the profile path. If it stops, show the reason and stop.
+
+Then show what setup locked. Setup_apply already locked the areas the repo's files show, so this is a recommended answer to check, not a fourth question. Run `python3 <kit>/scripts/safety_card.py suggest` from the repo's root and show its lines as they are. If it shows no areas, say "Nothing looked like payments, login or customer emails, so nothing is locked. Tell me what should never change without asking and I will lock it." Ask with the AskUserQuestion tool: "What should never change without asking?"
+- "Looks right (Recommended)": "Dualtrack won't touch these. If a bet needs one, it stops and asks you first."
+- "Change the list": "Tell me what to add or remove, in plain words."
+Change the list: edit the `**Locked area:** <plain name> :: <path pattern>` lines in the profile, whose path is setup_apply's last line, one line for each area. Use a known name's pattern from `safety_card.py`, or write a pattern for the folder or file they describe. Show the new list.
 
 Then set up their numbers, so the first brief uses real data. First show this card as it is:
 
@@ -118,7 +125,7 @@ Then ask with the AskUserQuestion tool: "How should Dualtrack see your numbers?"
 - "Paste them into numbers.md": "Type counts by hand in `numbers.md`, next to the profile. Write unknown where you have none."
 - "Skip for now": "The first brief works from your repo and public pages."
 
-Paste: say where `numbers.md` is, from setup_apply's `filed:` line, and go on to section 4. Skip: go on to section 4. Connect: run `python3 <kit>/scripts/sources.py menu`, show its lines as they are, and ask which to connect, by name. For each name, say its `ask` from `<kit>/sources.json`: that is exactly what Dualtrack reads. Say that what it finds stays in their repos. Then follow sections 2 and 3 of `<kit>/skills/dualtrack-connect/SKILL.md`. One that fails to connect is skipped, not retried.
+Paste: say where `numbers.md` is, from setup_apply's `filed:` line, and go on to section 4. Skip: go on to section 4. Connect: run `python3 <kit>/scripts/sources.py menu`, show its lines as they are, and ask which to connect, by name. For each name, say its `ask` from `<kit>/sources.json`: that is exactly what Dualtrack reads. Say that what it finds stays in their repos. Then follow sections 2 and 3 of `<kit>/skills/dualtrack-connect/SKILL.md`. One that fails to connect is skipped, not retried. If the Question 1 follow-up named a backlog, connect its source first (Linear or Jira). A roadmap doc needs no name: connect its source and its `ask` already covers roadmap pages.
 
 ## 4. First review, and the first call
 
@@ -137,5 +144,6 @@ Only now, after the first call, give them the exact steps from `<kit>/docs/sched
 - Dualtrack agents open ready pull requests, and they decide. Only with Auto-merge on does a small change that passes every check merge without them; the team log (team-log.md) then says how to undo it.
 - To ask for changes, they comment on the pull request, in general or on a line. The next run builds the comments on that same pull request. GitHub does not let anyone press Request changes on their own pull request, so in personal mode a comment is the way. Anyone with write access to the repo can ask, so they should check who has it.
 - To ask Dualtrack's maker for a feature, they run /dualtrack:dualtrack-request.
+- Your dashboard is one page with your calls and what they cost. Say `/dualtrack dashboard` to open it.
 
 Never edit their code, merge, or push anything except the state repo during setup.

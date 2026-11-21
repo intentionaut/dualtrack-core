@@ -5,7 +5,7 @@
     sources.py menu                   every source, grouped by kind, with what it reads
     sources.py names <profile>        the profile's Sources line, one known name per line
     sources.py tools <name>           the allowed tool names, mcp__<name>__<tool>, one per line
-    sources.py ask <name>             what to ask that source
+    sources.py ask <name> [profile]   what to ask that source; the whole backlog when the profile's Backlog line names it
     sources.py setup <name>           the command that connects it in Claude Code
     sources.py schema                 the JSON Schema the reader must answer in
     sources.py unpinned <name>        why this machine's local server is not the pinned version; exit 1 if so
@@ -227,6 +227,18 @@ def render(name, today, out):
     return md, dropped, planted, sorted(unnamed)
 
 
+def ask(name, profile=None):
+    """The source's ask, or its backlog-wide ask when the profile's Backlog line is "<name>: <project>"."""
+    s = load()[name]
+    source, _, project = (profile_value.field(pathlib.Path(profile).read_text(), "Backlog") if profile else "").partition(":")
+    if source.strip().lower() != name or not s.get("backlog_ask"):
+        return s["ask"]
+    # The project name goes into the reader's prompt: a short plain name only, never a sentence that could give orders.
+    if not re.fullmatch(r"[A-Za-z0-9 _-]{1,40}", project.strip()):
+        sys.exit(f"Backlog: the project name must be 1 to 40 letters, digits, spaces, _ or -: {project.strip()[:40]}")
+    return s["backlog_ask"].replace("{project}", project.strip())
+
+
 def names(profile):
     value = profile_value.field(pathlib.Path(profile).read_text(), "Sources")
     if not value or value.startswith("<") or value.lower() in ("none", "unknown"):
@@ -275,7 +287,7 @@ def main(a):
     if a[:1] == ["names"]:
         print("\n".join(names(a[1])))
         return 0
-    s = load().get(a[1]) if len(a) == 2 else None
+    s = load().get(a[1]) if len(a) == 2 or a[:1] == ["ask"] and len(a) == 3 else None
     if s is None or problems(a[1], s):
         sys.exit(f"unknown or unsafe source: {' '.join(a[1:])}")
     if a[0] == "tools":
@@ -283,7 +295,7 @@ def main(a):
         for server in [s.get("server", a[1])] + ([s["connector"]] if s.get("connector") else []):
             print("\n".join(f"mcp__{server}" if t == "*" else f"mcp__{server}__{t}" for t in s["tools"]))
     elif a[0] == "ask":
-        print(s["ask"])
+        print(ask(a[1], a[2] if len(a) == 3 else None))
     elif a[0] == "setup":
         print(main_setup(a[1]))
     else:

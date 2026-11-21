@@ -64,6 +64,7 @@ def context(profile):
         "question": brief.get("question") or None,
         "recent_decisions": tail_lines(read(os.path.join(ctx, "decisions.md")), 10),
         "conventions": tail_lines(read(os.path.join(ctx, "conventions.md")), 20),
+        "lessons": tail_lines(read(os.path.join(ctx, "lessons.md")), 20),
         "product_memory": "product.md",
         "product_areas": "areas.md",
         "steer": {"build option": "decide.py N", "ask for something": 'decide.py try "what"',

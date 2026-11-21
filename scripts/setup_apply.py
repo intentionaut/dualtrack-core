@@ -26,6 +26,7 @@ sys.path.insert(0, str(KIT / "scripts"))
 import decide  # noqa: E402
 import file_setup  # noqa: E402
 import profile_value  # noqa: E402
+import safety_card  # noqa: E402
 import setup_check  # noqa: E402
 GH = os.environ.get("GH_BIN", "gh")
 RUN_CAP = "10"  # the suggested limit a run, in dollars, until the owner picks their own
@@ -71,6 +72,26 @@ def opt(argv, name, choices, default=None):
     if value not in choices:
         raise SystemExit(f"stopped: {name} must be one of {', '.join(choices)}")
     return value
+
+
+def locked_picks(argv):
+    """The locked areas: --locked "none", or names from the suggestions, or `Name :: path regex`, split on `;`.
+    With no --locked, every area the repo's files show is locked: stopping and asking is the safe default."""
+    files = subprocess.run(["git", "ls-files"], capture_output=True, text=True).stdout.splitlines()
+    found = {n: rx for n, rx, _ in safety_card.suggest(files)}
+    if "--locked" not in argv:
+        return list(found.items())
+    value = argv[argv.index("--locked") + 1] if argv.index("--locked") + 1 < len(argv) else ""
+    if value.strip().lower() == "none":
+        return []
+    picks = []
+    for part in (x.strip() for x in value.split(";") if x.strip()):
+        name, sep, rx = (x.strip() for x in part.partition(" :: "))
+        rx = rx if sep else safety_card.AREAS.get(name, "")
+        if not rx:
+            raise SystemExit(f"stopped: --locked has no area called {name}. Use one of {', '.join(safety_card.AREAS)}, or write `Name :: path pattern`.")
+        picks.append((name, rx))
+    return picks
 
 
 def state_name(argv):
@@ -153,6 +174,7 @@ def main(argv):
     if test_network == "on" and not domains:
         raise SystemExit("stopped: Test network on needs --allowed-domains, so the engineer's own test runs reach them too")
     focus = " ".join(argv[argv.index("--focus") + 1].split()) if "--focus" in argv else ""
+    backlog = " ".join(argv[argv.index("--backlog") + 1].split()) if "--backlog" in argv else ""
     # The bets' owner: their answer, else their git name. A name, never a pipe or a new line in the record.
     owner_name = (argv[argv.index("--owner") + 1] if "--owner" in argv else
                   subprocess.run(["git", "config", "user.name"], capture_output=True, text=True).stdout).strip()
@@ -222,10 +244,14 @@ def main(argv):
         profile = set_line(profile, name, value)
     if tests:
         profile = set_line(profile, "Test commands", tests)
+    picks = locked_picks(argv)
+    profile = safety_card.save(profile, picks)
     # Only the owner's answer sets this: a draft written from a repo's text never widens the network.
     profile = set_line(profile, "Allowed domains", domains or "none")
     if focus:
         profile = set_line(profile, "Focus", focus)
+    if backlog:
+        profile = set_line(profile, "Backlog", backlog)
     if owner_name:
         profile = set_line(profile, "Owner", owner_name)
     profile_path.write_text(profile)
@@ -244,6 +270,8 @@ def main(argv):
         os.remove("setup.json")
     print("- set Brief doc, Engineer rules, Code review, Auto-merge, Design rules, Allowed domains and Run cap from the answers")
     print("  Run cap is the most one run may spend. Auto-merge, when on, lets a small change that passes every check merge on its own; it is off by default.")
+    print(f"- Locked: {', '.join(n for n, _ in picks) or 'nothing'}. A bet that needs one stops and asks you first. "
+          "Change the list with the Locked area lines in profile.md, or run setup again with --locked.")
     if not domains:
         print("- Allowed domains is none; add domains to profile.md later if the tests need them")
     if record == "local":

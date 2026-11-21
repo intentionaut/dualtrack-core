@@ -117,6 +117,18 @@ def check_new_idea_bet(text, profile, bets):
         raise ValueError("the Bets must include a new idea")
 
 
+# Evidence: <one quote or number> | <N> signals | <source and date>[; <source and date>]
+EVIDENCE = re.compile(r'Evidence: (?P<what>"[^"]+"|[^|]*\d[^|]*)\s*\|\s*(?P<n>[1-9]\d*) signals?\s*\|\s*(?P<src>[^|]*\d{4}-\d{2}-\d{2}[^|]*)')
+
+
+def check_bet_evidence(text):
+    """A proposed bet is not proposed without what it rests on: a quote or number, how many signals agree, and each source with its date."""
+    section = re.search(r"^Bets:\n((?:- .+\n?)*)", text, re.M)
+    for line in section.group(1).splitlines() if section else []:
+        if re.match(r"- proposed\b", line) and not EVIDENCE.search(line):
+            raise ValueError(f"a proposed bet needs an evidence line: Evidence: <quote or number> | <N> signals | <source and date>. Missing on: {line[2:60]}")
+
+
 def file_memo(profile_path, message_path):
     profile = pathlib.Path(profile_path).read_text()
     text = pathlib.Path(message_path).read_text()
@@ -141,6 +153,7 @@ def file_memo(profile_path, message_path):
         check_mode(text, profile)
         move = check_move(text, decisions.read_text() if decisions.is_file() else "", bets.read_text() if bets.is_file() else "")
         check_new_ideas(text, profile)
+        check_bet_evidence(text)
         try:
             check_new_idea_bet(text, profile, bets.read_text() if bets.is_file() else "")
             slot = ""

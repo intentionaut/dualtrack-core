@@ -26,6 +26,7 @@ manager run with nothing connected, and improves as more context arrives.
 1. **Read** what the inputs give you. Stop reading once the fields are filled.
 2. **Fill** each field of `profile.template.md`, marking each one
    `(confirmed: <source>)`, `(inferred: <source>)` or `unknown`.
+   Ask no open question about a field you marked `(confirmed: ...)`: a confirmed Goal is not asked again.
 3. **Find what is measurable.** Name the numbers already available, and what the
    owner could paste in. Default value must not depend on any connection.
 3a. **Leave out Copy source** unless the owner names one, and Notion page unless the store is notion.

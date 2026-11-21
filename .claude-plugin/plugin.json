@@ -1,6 +1,6 @@
 {
   "name": "dualtrack",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "The product operating system for Claude Code. It proposes product bets, builds changes in your repo, and records what each one did. Auto-merge is off by default.",
   "author": {
     "name": "Saielle DaSilva",
