@@ -102,6 +102,12 @@ def sign(body, secret):
     return "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
 
 
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A webhook that answers with a redirect is not followed: the signature and event stay with the host set."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 def send(ev, env=os.environ):
     url = env.get("DUALTRACK_WEBHOOK_URL")
     if not url:
@@ -122,7 +128,7 @@ def send(ev, env=os.environ):
     if env.get("DUALTRACK_WEBHOOK_SECRET"):
         headers["X-Dualtrack-Signature"] = sign(body, env["DUALTRACK_WEBHOOK_SECRET"])
     try:
-        with urllib.request.urlopen(urllib.request.Request(url, data=body, headers=headers, method="POST"), timeout=20) as r:
+        with urllib.request.build_opener(NoRedirect).open(urllib.request.Request(url, data=body, headers=headers, method="POST"), timeout=20) as r:
             return f"sent: {r.status}"
     # The run's work is saved either way; a failed send is reported in the brief, never fatal, and never sent again by itself.
     except urllib.error.HTTPError as e:

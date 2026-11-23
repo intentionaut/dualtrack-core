@@ -19,6 +19,7 @@ import os
 import subprocess
 import sys
 import time
+import urllib.parse
 import urllib.request
 
 # Checks to post Dualtrack's review beside CI; administration, read-only, to read the repo's rulesets and required checks.
@@ -40,12 +41,21 @@ def jwt(app_id, key_path, now=None, signer=None):
     return f"{head}.{body}.{b64(sig)}"
 
 
+class SameHost(urllib.request.HTTPRedirectHandler):
+    """Follow a redirect only on the same scheme and host: the bearer token must never reach another machine."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        a, b = urllib.parse.urlsplit(req.full_url), urllib.parse.urlsplit(newurl)
+        if (a.scheme, a.netloc) != (b.scheme, b.netloc):
+            return None
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def call(url, token, data=None):
     req = urllib.request.Request(url, data=json.dumps(data).encode() if data is not None else None,
                                  method="POST" if data is not None else "GET",
                                  headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
                                           "X-GitHub-Api-Version": "2022-11-28"})
-    with urllib.request.urlopen(req, timeout=30) as r:
+    with urllib.request.build_opener(SameHost).open(req, timeout=30) as r:
         return json.load(r)
 
 

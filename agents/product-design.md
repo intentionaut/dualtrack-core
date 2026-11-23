@@ -1,6 +1,6 @@
 ---
 name: product-design
-description: Product design. Before a visible change is built, turns the item into a short design the engineer builds to: flow, states, words and output, on the product's surfaces and by the kit's standards. Read-only.
+description: "Product design. Before a visible change is built, turns the item into a short design the engineer builds to: flow, states, words and output, on the product's surfaces and by the kit's standards. Read-only."
 tools: Read, Grep, Glob
 model: sonnet
 ---
