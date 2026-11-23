@@ -82,6 +82,20 @@ class Handoff(unittest.TestCase):
         self.assertEqual(headers["X-Dualtrack-Signature"], want)
         self.assertEqual(json.loads(body)["outcome"], "quiet: nothing fired")
 
+    def test_a_receiver_that_is_down_is_not_delivered_and_one_that_loses_its_answer_is_unknown(self):
+        import socket
+        s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
+        ev = handoff.event(str(self.profile), "quiet: nothing fired")
+        self.assertTrue(handoff.send(ev, {"DUALTRACK_WEBHOOK_URL": f"http://127.0.0.1:{port}/hook"}).startswith("not delivered"))
+        got = []
+        class Lose(http.server.BaseHTTPRequestHandler):
+            def do_POST(s):
+                got.append(s.rfile.read(int(s.headers["Content-Length"]))); s.close_connection = True
+            def log_message(s, *a): pass
+        srv = http.server.HTTPServer(("127.0.0.1", 0), Lose); threading.Thread(target=srv.handle_request, daemon=True).start()
+        self.assertTrue(handoff.send(ev, {"DUALTRACK_WEBHOOK_URL": f"http://127.0.0.1:{srv.server_port}/hook"}).startswith("delivery unknown"))
+        self.assertEqual(len(got), 1)
+
     def test_a_post_holding_the_canary_is_never_sent(self):
         ev = handoff.event(str(self.profile), "held: ghp_canary123 leaked")
         out = handoff.send(ev, {"DUALTRACK_WEBHOOK_URL": self.serve(), "DUALTRACK_CANARY": "ghp_canary123"})

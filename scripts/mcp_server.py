@@ -356,7 +356,7 @@ def handle(msg, env=os.environ):
     err = lambda code, m: {"jsonrpc": "2.0", "id": mid, "error": {"code": code, "message": m}}
     if method == "initialize":
         return ok({"protocolVersion": params.get("protocolVersion") or PROTOCOL, "capabilities": {"tools": {}},
-                   "serverInfo": {"name": "dualtrack", "version": "1.0.3"}})
+                   "serverInfo": {"name": "dualtrack", "version": "1.0.4"}})
     if method == "ping":
         return ok({})
     if method == "tools/list":

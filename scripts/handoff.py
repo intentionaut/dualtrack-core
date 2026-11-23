@@ -16,8 +16,10 @@ import hmac
 import json
 import os
 import re
+import socket
 import profile_value  # noqa: E402
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -107,23 +109,29 @@ def send(ev, env=os.environ):
     body = json.dumps(ev).encode()
     canary = env.get("DUALTRACK_CANARY")
     if canary and canary.encode() in body:
-        return "not sent: the event holds the run's canary token"
+        return "not delivered: the event holds the run's canary token"
     # scan unescaped: json.dumps escapes a zero-width space, so leaks() could not strip it
     found = loop_lib.leaks(json.dumps(ev, ensure_ascii=False))  # test or setup output can reach the outcome line before the record's own scan
     if found:
-        return f"not sent: the event holds {found[0]}"
+        return f"not delivered: the event holds {found[0]}"
     # The host itself, not the start of the URL: http://127.0.0.1.example.com is someone else's machine.
     parts = urllib.parse.urlsplit(url)
     if parts.scheme != "https" and not (parts.scheme == "http" and parts.hostname == "127.0.0.1"):
-        return "not sent: the webhook must be https"
+        return "not delivered: the webhook must be https"
     headers = {"Content-Type": "application/json", "User-Agent": "dualtrack"}
     if env.get("DUALTRACK_WEBHOOK_SECRET"):
         headers["X-Dualtrack-Signature"] = sign(body, env["DUALTRACK_WEBHOOK_SECRET"])
     try:
         with urllib.request.urlopen(urllib.request.Request(url, data=body, headers=headers, method="POST"), timeout=20) as r:
             return f"sent: {r.status}"
-    except Exception as e:  # the run's work is saved either way; a failed send is reported, never fatal
-        return f"not sent: {e}"
+    # The run's work is saved either way; a failed send is reported in the brief, never fatal, and never sent again by itself.
+    except urllib.error.HTTPError as e:
+        return f"not delivered: the receiver answered HTTP {e.code}"
+    except urllib.error.URLError as e:  # nothing answered: refused or unresolvable means it never arrived; anything else may have
+        refused = isinstance(e.reason, (ConnectionRefusedError, socket.gaierror))
+        return f"{'not delivered' if refused else 'delivery unknown'}: {e.reason}"
+    except Exception as e:  # a timeout, or a reply that never came: the receiver may hold the event
+        return f"delivery unknown: {e}"
 
 
 def main(a):

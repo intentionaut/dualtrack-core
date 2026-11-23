@@ -20,6 +20,21 @@ It follows the **Dual Track Agent Team** method:
 | Automatic | on its own | research; changes of any size that no person would see (tests, broken links, metadata), when nothing on the stop list is touched |
 | Owner | merges only with you, unless you turn on Auto-merge | anything a person would see: designed, built and reviewed; it may be built before your pick, and the pull request says so |
 
+Licence: FSL-1.1-ALv2. Source-available, free to use, and each release becomes Apache 2.0 after two years (see Licence).
+
+## Quick start
+
+In Claude Code, install the plugin:
+
+```
+/plugin marketplace add intentionaut/dualtrack-core
+/plugin install dualtrack@dualtrack
+```
+
+Then, in any product repo, type `/dualtrack:dualtrack`.
+
+Before you start you need Claude Code logged in, Python 3.9 or later, and Bash. For pull requests you also need a GitHub repo, `gh` logged in, and tests that run locally. On Ubuntu 24.04, setup needs one machine-wide `sudo` change first: see Requirements. To see what a run produces before you try one, read the sample memos in `example/memos/`.
+
 ## Requirements
 
 - Claude Code, logged in. A Claude subscription covers it if `ANTHROPIC_API_KEY` is unset.
@@ -42,11 +57,11 @@ In Claude Code, install the plugin once:
 /plugin install dualtrack@dualtrack
 ```
 
-From a local clone instead, use its folder: `/plugin marketplace add ./path/to/dualtrack`.
+From a local clone instead, use its folder: `/plugin marketplace add ./path/to/dualtrack-core`.
 
 Once installed, type `/dualtrack:dualtrack` to start.
 
-Then, in any product repo, type `/dualtrack:dualtrack`. It checks the repo for free, asks at most three plain questions with a recommended answer each, writes the profile and runs the first review. Your code doesn't change. If you keep the record in a private repo, setup asks first, then creates that repo in your GitHub account and pushes Dualtrack's notes there. No GitHub repo yet? Setup still works and keeps the record on this computer, but without GitHub Dualtrack gives you briefs only, no pull requests. Add a GitHub repo later and it builds your picks. No numbers are needed to start: Dualtrack agents work from public evidence and list what they do not know.
+Run it in any product repo. The first run checks the repo for free, asks at most three plain questions with a recommended answer each, writes the profile and runs the first review. Your code doesn't change. If you keep the record in a private repo, setup asks first, then creates that repo in your GitHub account and pushes Dualtrack's notes there. No GitHub repo yet? Setup still works and keeps the record on this computer, but without GitHub Dualtrack gives you briefs only, no pull requests. Add a GitHub repo later and it builds your picks. No numbers are needed to start: Dualtrack agents work from public evidence and list what they do not know.
 
 After that, `/dualtrack:dualtrack` is the only command you need. Each time, it does the next thing: shows the brief and takes your call in plain words ("build 2", "none of these, because..."), points you to a pull request to review, asks Dualtrack's question, or runs Dualtrack agents.
 
@@ -59,13 +74,19 @@ To ask Dualtrack's maker for a feature, type `/dualtrack:dualtrack-request`. It 
 <details>
 <summary>Without the plugin</summary>
 
-Put the kit beside your repo as `../dualtrack`. From your repo's root:
+Clone the kit beside your repo, so it sits at `../dualtrack-core`:
 
 ```sh
-mkdir -p .claude/agents .claude/skills && cp ../dualtrack/agents/*.md .claude/agents/ && cp -R ../dualtrack/skills/dualtrack-team .claude/skills/
-claude -p "Repo: . Today is $(date +%F). The moves are in ../dualtrack/moves.md." --agent setup --permission-mode dontAsk --allowedTools Read Grep Glob WebFetch < /dev/null > setup.md
-python3 ../dualtrack/scripts/file_setup.py setup.md
-bash ../dualtrack/scripts/run.sh profile.md
+git clone https://github.com/intentionaut/dualtrack-core.git ../dualtrack-core
+```
+
+Then, from your repo's root:
+
+```sh
+mkdir -p .claude/agents .claude/skills && cp ../dualtrack-core/agents/*.md .claude/agents/ && cp -R ../dualtrack-core/skills/dualtrack-team .claude/skills/
+claude -p "Repo: . Today is $(date +%F). The moves are in ../dualtrack-core/moves.md." --agent setup --permission-mode dontAsk --allowedTools Read Grep Glob WebFetch < /dev/null > setup.md
+python3 ../dualtrack-core/scripts/file_setup.py setup.md
+bash ../dualtrack-core/scripts/run.sh profile.md
 ```
 
 | Step | Writes |
@@ -91,7 +112,7 @@ Each run's checks are listed on its pull request under **Safety checks**, in the
 
 ## With other agents and workflows
 
-Every run leaves a `dualtrack.run.v1` event in `product-context/events/` and, if you set `DUALTRACK_WEBHOOK_URL`, posts it there signed. Zapier, n8n, Make, Workato or Power Automate can route it to Slack, Teams, email or a ticket. Other agents read the product's context with `python3 ../dualtrack/scripts/handoff.py context profile.md` and steer Dualtrack agents through `decide.py`. See `docs/handoff.md`.
+Every run leaves a `dualtrack.run.v1` event in `product-context/events/` and, if you set `DUALTRACK_WEBHOOK_URL`, posts it there signed. Zapier, n8n, Make, Workato or Power Automate can route it to Slack, Teams, email or a ticket. Other agents read the product's context with `python3 ../dualtrack-core/scripts/handoff.py context profile.md` and steer Dualtrack agents through `decide.py`. See `docs/handoff.md`.
 
 ## Company mode
 
@@ -117,7 +138,7 @@ Not yet covered:
 
 With the plugin, `/dualtrack:dualtrack` does each of these for you. By hand:
 
-1. **Run:** `bash ../dualtrack/scripts/daily_loop.sh profile.md`, by hand or on a schedule.
+1. **Run:** `bash ../dualtrack-core/scripts/daily_loop.sh profile.md`, by hand or on a schedule.
 2. **Read the brief:** a Claude doc per product, newest day first, with a **Your call** dropdown on each row. Also in `product-context/morning.md`. `/dualtrack:dualtrack-team` in Claude Code walks you through it (`/dualtrack-team` if you copied the skills in instead). Set **Brief doc** to `none` for files only.
    `product-context/inbox.md` lists every option and bet with its type (Issue, Opportunity or Insight), its priority, where it is now (Offered, Picked, Held, Blocked, Needs you, PR open, Merged, Resolved, Closed or Declined), a link to the line behind it, and the next step. It is rebuilt at every run and every `decide` call, from the records below. In a state repo on GitHub, it is the team's screen: open it there, on any device.
 
@@ -126,17 +147,17 @@ With the plugin, `/dualtrack:dualtrack` does each of these for you. By hand:
 
 | Command | Effect |
 |---|---|
-| `python3 ../dualtrack/scripts/decide.py 1` | build option 1 |
-| `python3 ../dualtrack/scripts/decide.py done 1 "how"` | option 1 was settled without code |
-| `python3 ../dualtrack/scripts/decide.py no "why"` | none of these; not offered again |
-| `python3 ../dualtrack/scripts/decide.py try "what"` | ask for something else |
+| `python3 ../dualtrack-core/scripts/decide.py 1` | build option 1 |
+| `python3 ../dualtrack-core/scripts/decide.py done 1 "how"` | option 1 was settled without code |
+| `python3 ../dualtrack-core/scripts/decide.py no "why"` | none of these; not offered again |
+| `python3 ../dualtrack-core/scripts/decide.py try "what"` | ask for something else |
 | `... decide.py --by "Sam" 2` | make a call under a teammate's name; without `--by`, every call carries the profile's **Owner** |
 | `... decide.py owner "title" "Sam"` | sign off a bet, or hand it on; until someone does, Dualtrack agents sign it |
-| `python3 ../dualtrack/scripts/decide.py answer "text"` | answer Dualtrack's question |
-| `python3 ../dualtrack/scripts/decide.py allow` | let through a bet Dualtrack agents held and asked you about; a safety stop is not a question, so `allow` refuses it |
-| `python3 ../dualtrack/scripts/decide.py resume` | let a team carry on after two closed changes in a row |
+| `python3 ../dualtrack-core/scripts/decide.py answer "text"` | answer Dualtrack's question |
+| `python3 ../dualtrack-core/scripts/decide.py allow` | let through a bet Dualtrack agents held and asked you about; a safety stop is not a question, so `allow` refuses it |
+| `python3 ../dualtrack-core/scripts/decide.py resume` | let a team carry on after two closed changes in a row |
 
-Lost? `/dualtrack:ask-dualtrack` (or `/ask-dualtrack`, copied in) names the next step and command for where you are. Copy it in with `cp -R ../dualtrack/skills/ask-dualtrack .claude/skills/`.
+Lost? `/dualtrack:ask-dualtrack` (or `/ask-dualtrack`, copied in) names the next step and command for where you are. Copy it in with `cp -R ../dualtrack-core/skills/ask-dualtrack .claude/skills/`.
 
 4. **Review:** the next run builds your pick as a ready pull request. Merge it, comment on it to ask for changes, or close it with a one-line reason. The next run builds your comments on the same pull request; only people with write access to the repo can ask. A close reason goes into the record Dualtrack agents read every run.
 
@@ -155,7 +176,7 @@ A routine is the one place Dualtrack agents have run unattended so far. [docs/sc
 | weekly review | $1.11 to $2.85, median $1.84 |
 | run that builds | $1.11 to $2.85, median $1.84 |
 
-The only measured runs in this repo are 25 priced runs of the injection eval (2026-11-04 to 2026-11-17, `evals/injection/results.jsonl`), each a full loop on a small repo: $1.11 to $2.85, median $1.84. Both rows use that one range: no weekly review was priced on its own. Real runs vary. One cloud run cost $1.14 and stopped before it built anything. To see what your own runs cost, run `python3 ../dualtrack/scripts/stats.py` from the folder that holds `profile.md`. It prints counts only and sends nothing.
+The only measured runs in this repo are 25 priced runs of the injection eval (2026-11-04 to 2026-11-17, `evals/injection/results.jsonl`), each a full loop on a small repo: $1.11 to $2.85, median $1.84. Both rows use that one range: no weekly review was priced on its own. Real runs vary. One cloud run cost $1.14 and stopped before it built anything. To see what your own runs cost, run `python3 ../dualtrack-core/scripts/stats.py` from the folder that holds `profile.md`. It prints counts only and sends nothing.
 
 Setup suggests a limit of $10 a run, and you can choose another amount or none. Every brief shows what this run cost, plus the totals for the last 7 and 30 days, and `costs.md` lists every call. On Mondays the brief opens with the week in numbers (spend against the week before, cost per merged pull request, outcomes, stops) and keeps it in `weekly.md`; a webhook, if you set one, carries it too, so you can route it to email. Change the limit when you've seen your costs: put a dollar figure, or none, in the profile's **Run cap**, or set `COST_CAP` for one run. With a cap set, a run never starts a build it can't afford to review, and a run cut short picks up at review next time.
 
@@ -337,7 +358,7 @@ Agents change nothing; a script files their final message. It needs only Python,
 
 ```sh
 claude -p "..." --agent product-manager > out.md
-python3 ../dualtrack/scripts/file_memo.py profile.md out.md
+python3 ../dualtrack-core/scripts/file_memo.py profile.md out.md
 ```
 
 | **Context store** | Where |
@@ -387,8 +408,8 @@ The agent reads an invented product, Gourdly, and returns a memo ending on one r
 The kit sends nothing to Dualtrack. Model calls go to the provider you configure, and dashboard.html loads fonts from Google Fonts.
 
 ```sh
-python3 ../dualtrack/scripts/stats.py           # counts from your record
-python3 ../dualtrack/scripts/stats.py --share   # opens a filled-in GitHub issue or email
+python3 ../dualtrack-core/scripts/stats.py           # counts from your record
+python3 ../dualtrack-core/scripts/stats.py --share   # opens a filled-in GitHub issue or email
 ```
 
 Counts only: runs, changes merged and closed, reviewer send-backs, estimated usage. No product names, titles, reasons, code or links. Nothing is sent until you submit it yourself.
@@ -426,7 +447,7 @@ Setup and runs leave the things below. Remove the ones that apply to you, in any
 | The daily schedule, if you set one | A routine at claude.ai/code/routines, a `/loop` session you left open, a cron line, or `.github/workflows/daily.yml` if you turned it on | Delete the routine there (it cannot be deleted from inside Claude Code), close the session, or remove the line or file. |
 | Sources you connected | Each one `/dualtrack:dualtrack-connect` added to Claude Code | `claude mcp remove <name>`. A connector you added in Claude.ai is removed in its settings. |
 | The brief doc, if **Brief doc** was `claude` | A Claude doc per product | Delete it in Claude. |
-| The plugin | Claude Code | `/plugin uninstall dualtrack@dualtrack`, then `/plugin marketplace remove dualtrack`. If you cloned the kit, delete `../dualtrack` too. |
+| The plugin | Claude Code | `/plugin uninstall dualtrack@dualtrack`, then `/plugin marketplace remove dualtrack`. If you cloned the kit, delete `../dualtrack-core` too. |
 
 Your product's own code is never changed by setup, so there is nothing to undo there.
 

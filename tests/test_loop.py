@@ -5,11 +5,13 @@ import os
 import pathlib
 import platform
 import shutil
+import signal
 import socket
 import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 KIT = pathlib.Path(__file__).resolve().parent.parent
@@ -21,7 +23,7 @@ except ImportError:  # run as tests.test_x from the repo root
     from tests import scratch
 
 FAKE_CLAUDE = r'''#!/usr/bin/env python3
-import json, os, pathlib, re, subprocess, sys
+import json, os, pathlib, re, subprocess, sys, time
 args = " ".join(sys.argv)
 s = os.environ.get("SCENARIO", "")
 if os.environ.get("GH_TOKEN") or "AUTHORIZATION" in os.environ.get("GIT_CONFIG_VALUE_2", ""):
@@ -232,12 +234,14 @@ else:
     n = int(count.read_text() or 0) + 1 if count.exists() else 1
     count.write_text(str(n))
     open(os.environ["TMP_COUNT"] + ".nav", "a").write(args)
+    if s == "hangnav": open(os.environ["TMP_COUNT"] + ".hang", "w").write("x"); time.sleep(60)  # a run in its review when it is killed
     result = "CHANGES\n1. x.py:1 fix" if s == "reject" or (s == "onefix" and n == 1) else "APPROVE"
     if s == "branchnote": result += "\nNote: main..team/2026-11-04-225726 is one commit, fine."
 cost = 5.0 if s == "overcap" and role == "engineer" else 0.01
 out = {"result": result, "total_cost_usd": cost}
 if s == "blockedleft" and role == "engineer":
     out["permission_denials"] = [{"tool_name": "Bash", "tool_input": {"command": "git -C . commit -m x"}}]
+if s == "badreceipt" and role == "engineer": print(json.dumps(out)[:25]); sys.exit(0)  # a receipt cut off mid-write
 print(json.dumps(out))
 '''
 FAKE_GH = r'''#!/usr/bin/env python3
@@ -1587,6 +1591,21 @@ class Loop(unittest.TestCase):
         branch = self.git("ls-remote", "origin", "refs/heads/team/*").split("refs/heads/")[1].split()[0]
         self.assertIn(f"pushed {branch}", r.stdout); self.assertIn(f"gh pr create --base main --head {branch}", r.stdout)
 
+    def test_a_pull_request_with_no_answer_is_found_again_by_the_next_run_without_building_twice(self):
+        r1 = self.run_loop("", PR_FAIL="1")
+        self.assertIn("unknown", r1.stdout); self.assertNotIn("could not open", r1.stdout)
+        r2 = self.run_loop("")
+        self.assertTrue(r2.stdout.startswith("opened:"), r2.stdout + r2.stderr)
+        self.assertEqual((self.t / "count.engineer").read_text().count("Build this item"), 1)
+        self.assertEqual(self.gh_log.read_text().count("pr create"), 2)  # the retry goes through the create, which reuses the open one
+
+    def test_a_call_with_no_readable_cost_keeps_the_total_and_is_not_called_over_the_cap(self):
+        r = self.run_loop("badreceipt")
+        self.assertIn("the call's cost could not be read at the engineer", r.stdout); self.assertNotIn("over the", r.stdout)
+        spend = (self.ctx / "team-log.md").read_text().splitlines()[-1].rsplit("| $", 1)[1]
+        self.assertGreater(float(spend), 0)  # the earlier steps' spend stays; it is never replaced by the error text
+        self.assertRegex((self.ctx / "costs.md").read_text(), r"\| engineer \|.*\| cost unknown \(total so far \$")
+
     def test_every_run_leaves_an_event_and_posts_it_to_the_webhook(self):
         import http.server, threading
         got = []
@@ -1602,6 +1621,19 @@ class Loop(unittest.TestCase):
         # A preflight writes and sends nothing.
         before = len(list((self.ctx / "events").glob("*.json")))
         self.run_loop(PREFLIGHT="1"); self.assertEqual(len(list((self.ctx / "events").glob("*.json"))), before)
+
+    def test_a_webhook_that_loses_its_answer_is_shown_in_the_brief_and_not_sent_again(self):
+        import http.server, threading
+        got = []
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_POST(s):
+                got.append(s.rfile.read(int(s.headers["Content-Length"]))); s.close_connection = True  # kept, then no answer
+            def log_message(s, *a): pass
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H); threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.server_close); self.addCleanup(srv.shutdown)
+        r = self.run_loop(DUALTRACK_WEBHOOK_URL=f"http://127.0.0.1:{srv.server_port}/hook"); self.assertTrue(self.opened(), r.stdout + r.stderr)
+        self.assertIn("delivery unknown", (self.ctx / "morning.md").read_text())
+        self.assertEqual(len(got), 1)
 
     def test_an_agent_planting_a_command_in_git_config_is_caught_and_undone(self):
         r = self.run_loop("gitconfig")
@@ -2335,6 +2367,45 @@ class Loop(unittest.TestCase):
         self.run_loop("overcap")
         item = self.ctx / "resume-item.json"
         return item, json.loads(item.read_text())
+
+    def test_a_parked_branch_is_fetched_from_origin_when_this_checkout_has_no_copy(self):
+        self.state_repo(); self.ctx = self.t / "state/shop/product-context"
+        self.run_loop("overcap")
+        branch = (self.ctx / "resume-branch.txt").read_text().strip()
+        self.git("branch", "-D", branch)  # a fresh cloud checkout: the branch is only on origin
+        r = self.run_loop(); self.assertTrue(self.opened(), r.stdout + r.stderr)
+        self.assertEqual((self.t / "count.engineer").read_text().count("Build this item"), 1)
+
+    def test_a_parked_branch_missing_everywhere_stops_instead_of_building_again(self):
+        self.parked()
+        branch = (self.ctx / "resume-branch.txt").read_text().strip()
+        self.git("branch", "-D", branch); self.git("push", "-q", "origin", "--delete", branch)
+        r = self.run_loop(); self.assertFalse(self.opened(), r.stdout)
+        self.assertIn(f"stopped: could not find the built branch {branch}", r.stdout)
+        self.assertEqual((self.t / "count.engineer").read_text().count("Build this item"), 1)
+
+    def test_a_run_killed_after_it_picked_up_the_parked_branch_resumes_it_again(self):
+        self.parked()
+        branch = (self.ctx / "resume-branch.txt").read_text().strip()
+        p = subprocess.Popen(["bash", str(KIT / "scripts/daily_loop.sh"), str(self.profile)], cwd=self.repo, env=self.loop_env("hangnav"),
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        hang = self.t / "count.hang"
+        for _ in range(900):
+            if hang.exists() or p.poll() is not None: break
+            time.sleep(0.2)
+        self.assertTrue(hang.exists(), "the resumed run never reached its review")
+        rows = [tuple(map(int, l.split())) for l in subprocess.run(["ps", "-axo", "pid=,ppid="], capture_output=True, text=True).stdout.splitlines()]
+        tree, todo = [], [p.pid]
+        while todo:
+            x = todo.pop(); tree.append(x); todo += [c for c, pp in rows if pp == x]
+        for x in tree:
+            try: os.kill(x, signal.SIGKILL)
+            except ProcessLookupError: pass
+        p.wait()
+        self.assertEqual((self.ctx / "resume-branch.txt").read_text().strip(), branch)  # a hard kill runs no cleanup: the marker must already be safe
+        r = self.run_loop(); self.assertTrue(self.opened(), r.stdout + r.stderr)
+        self.assertEqual((self.t / "count.engineer").read_text().count("Build this item"), 1)
+        self.assertFalse((self.ctx / "resume-branch.txt").exists())  # a finished run consumes the marker
 
     def test_criteria_locked_when_the_item_is_parsed_and_unchanged_passes(self):
         item, _ = self.parked()

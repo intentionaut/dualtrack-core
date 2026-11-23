@@ -37,6 +37,10 @@ SAMPLES = {
     'safety stop: $f $why': ["safety stop: CHANGELOG.md holds a private name"],
     'paused: $1; the next run picks up the built change at review, without planning again': [],  # short() itself; its callers are scanned
     'stopped: $1': [],
+    'stopped: $SPEND_WHY': ["stopped: over the $2.00 cap at source x, 2.1000",
+                            "stopped: the call's cost could not be read at source x, so its spend is unknown; the total so far, $0.0600, is kept"],  # daily_loop.sh: spend()
+    '$SPEND_WHY': ["over the $2.00 cap at the engineer, 2.1000",
+                   "the call's cost could not be read at the engineer, so its spend is unknown; the total so far, $0.0600, is kept"],
     '$STATE_MSG': ["state not saved: the record is committed in X but not pushed; run: git -C X pull --rebase"],
     '$why; the message is at $out': ["unknown: nothing filed: x; the message is at y"],
 }

@@ -69,12 +69,21 @@ class GhRest(unittest.TestCase):
 
     def test_pr_create_opens_a_ready_pull_request_and_labels_it(self):
         body = self.t / "body.md"; body.write_text("trail")
-        url = self.run_rest("pr", "create", "--base", "main", "--head", "team/x", "--title", "T",
+        url = self.run_rest("pr", "create", "--base", "main", "--head", "team/y", "--title", "T",
                             "--body-file", str(body), "--label", "team-daily")
         self.assertEqual(url, "https://github.com/o/r/pull/4")
         calls = self.log.read_text().splitlines()
-        self.assertIn("draft=false", calls[0])
-        self.assertIn("issues/4/labels", calls[1])
+        self.assertIn("draft=false", calls[1])
+        self.assertIn("issues/4/labels", calls[2])
+
+    def test_pr_create_for_a_branch_that_already_has_an_open_pull_request_labels_it_and_opens_no_second(self):
+        body = self.t / "body.md"; body.write_text("trail")  # the fake's open pull request 3 is on team/x
+        url = self.run_rest("pr", "create", "--base", "main", "--head", "team/x", "--title", "T",
+                            "--body-file", str(body), "--label", "team-daily")
+        self.assertEqual(url, "https://github.com/o/r/pull/3")
+        calls = self.log.read_text().splitlines()
+        self.assertFalse([c for c in calls if "draft=false" in c], calls)
+        self.assertIn("issues/3/labels", calls[-1])
 
     def test_review_reads_are_rest_gets_and_write_nothing(self):
         for what in ("info", "diff", "files", "comments", "reviews"):

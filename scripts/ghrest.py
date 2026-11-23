@@ -79,7 +79,11 @@ def pr_list(args):
 
 def pr_create(args):
     body = open(opt(args, "--body-file")).read()
-    p = api("repos/{owner}/{repo}/pulls", "-f", f"title={opt(args, '--title')}", "-f", f"head={opt(args, '--head')}",
+    # A create whose answer was lost, or whose label failed, left a pull request behind: reuse it, so a retry never opens a second.
+    # shortcut: looks at the newest 100 open pull requests; page it if a repo holds more.
+    open_prs = api("repos/{owner}/{repo}/pulls?state=open&per_page=100")
+    p = next((q for q in open_prs if (q.get("head") or {}).get("ref") == opt(args, "--head")), None) or \
+        api("repos/{owner}/{repo}/pulls", "-f", f"title={opt(args, '--title')}", "-f", f"head={opt(args, '--head')}",
             "-f", f"base={opt(args, '--base')}", "-f", f"body={body}", "-F", f"draft={'true' if '--draft' in args else 'false'}",
             method="POST")
     if opt(args, "--label"):
